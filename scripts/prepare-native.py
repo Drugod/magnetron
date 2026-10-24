@@ -48,6 +48,13 @@ def check_lock():
             a=LOCK[key][component]
             if urllib.parse.urlsplit(a['url']).scheme!='https' or len(a['sha256'])!=64 or any(c not in '0123456789abcdef' for c in a['sha256'].lower()):raise ValueError('Invalid locked asset')
     print('Native asset lock: OK')
+def check_daemon_version(daemon):
+    result=subprocess.run([str(daemon),'--version'],capture_output=True,text=True,timeout=15)
+    output=result.stdout+'\n'+result.stderr
+    # wxWidgets returns -1 (255 on Unix) after the successful version-only path.
+    if result.returncode not in (0,255) or not any(line.strip().startswith('aMuleD 3.1.0 compiled with') for line in output.splitlines()):
+        raise RuntimeError('aMuled version check failed: '+output)
+    print(output.strip())
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('--check-lock',action='store_true');args=parser.parse_args();check_lock()
     if args.check_lock:return
@@ -105,6 +112,6 @@ def main():
     # Fail before packaging if a target runtime or daemon cannot load its libraries.
     run(python,'-I','-c','import libtorrent,ssl; print(libtorrent.version)')
     daemon=native/('amule/aMule.app/Contents/MacOS/amuled' if system=='macos' else 'amule/bin/amuled')
-    run(daemon,'--version')
+    check_daemon_version(daemon)
     print('Native engines prepared for '+key)
 if __name__=='__main__':main()

@@ -1,9 +1,17 @@
 """Offline security/lock tests for native preparation, runnable on Windows too."""
 import importlib.util,io,json,pathlib,tarfile,tempfile,unittest,zipfile
+from unittest.mock import patch
+from types import SimpleNamespace
 ROOT=pathlib.Path(__file__).resolve().parent.parent
 spec=importlib.util.spec_from_file_location('prepare_native',ROOT/'scripts/prepare-native.py');m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
 class NativePreparation(unittest.TestCase):
     def test_lock(self):m.check_lock()
+    def test_daemon_version_exit_convention(self):
+        for code,text,accepted in [(0,'aMuleD 3.1.0 compiled with wxBase',True),(255,'aMuleD 3.1.0 compiled with wxBase',True),(255,'loader failure',False),(-11,'aMuleD 3.1.0 compiled with wxBase',False)]:
+            with patch.object(m.subprocess,'run',return_value=SimpleNamespace(returncode=code,stdout=text,stderr='')):
+                if accepted:m.check_daemon_version('fixture')
+                else:
+                    with self.assertRaises(RuntimeError):m.check_daemon_version('fixture')
     def test_tar_traversal(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=pathlib.Path(tmp);archive=root/'evil.tar.gz'
