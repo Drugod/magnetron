@@ -6,6 +6,10 @@ A minimalist Windows app to search, download, and share files over BitTorrent an
 
 One field for search queries and pasted links, built-in transfer engines, automatic public-source management and a local metadata index. The packaged app does not require separate Jackett, aMule, Python or Docker installations.
 
+## Linux and macOS development
+
+Experimental native ports and a three-target build matrix are being prepared. They are not yet validated releases. See [platform builds](docs/PLATFORMS.md) for status, target requirements and native build instructions. Windows 0.8.0 remains the validated package.
+
 ## Download
 
 Get the installer from [Releases](https://github.com/Drugod/magnetron/releases), once published. Choose `MAGNETRON_0.8.0_x64-setup.exe`: it includes the required engines and libraries.

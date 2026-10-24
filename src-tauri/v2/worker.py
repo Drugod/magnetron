@@ -18,7 +18,7 @@ def paths_for(ti, root, resume):
             stem=part.split('.')[0].upper()
             if part in ('.','..') or part.endswith((' ','.')) or re.search(r'[<>:"|?*\x00-\x1f]',part) or stem in ('CON','PRN','AUX','NUL') or re.fullmatch(r'(COM|LPT)[1-9]',stem): raise ValueError('Unsafe torrent filename')
             current=current/part
-            if current.exists() and (current.is_symlink() or getattr(current.lstat(),'st_file_attributes',0)&0x400): raise ValueError('Links and junctions are not allowed')
+            if os.path.lexists(current) and (current.is_symlink() or getattr(current.lstat(),'st_file_attributes',0)&0x400): raise ValueError('Links and junctions are not allowed')
         if str(path).lower() in seen: raise ValueError('Duplicate Windows filename')
         seen.add(str(path).lower())
         if current.exists() and not resume: raise ValueError('A destination file already exists; it will not be overwritten')

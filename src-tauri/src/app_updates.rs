@@ -23,6 +23,9 @@ pub struct Status {
     version: Option<String>,
 }
 fn channel() -> Option<(&'static str, &'static str)> {
+    if !cfg!(windows) {
+        return None;
+    }
     Some((
         option_env!("MAGNETRON_UPDATE_URL")?,
         option_env!("MAGNETRON_UPDATE_PUBLIC_KEY")?,

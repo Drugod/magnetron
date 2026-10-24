@@ -1,0 +1,66 @@
+{
+  "macos-x64": {
+    "jackett": {
+      "url": "https://github.com/Jackett/Jackett/releases/download/v0.24.2900/Jackett.Binaries.macOS.tar.gz",
+      "sha256": "260309a6f55902a7324f990d03f955b6a9fe6c62704d2b7480ccb40bdaed026b"
+    },
+    "python": {
+      "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20260901/cpython-3.13.15%2B20260901-x86_64-apple-darwin-install_only_stripped.tar.gz",
+      "sha256": "f712a9143c8a5d248438ec7921a0b48d548bca4f1337d33c690d28c2d0504137"
+    },
+    "wheel": {
+      "url": "https://files.pythonhosted.org/packages/5d/3f/a8b5ac66bc80f143b4ea734dbc6f19d9d80dd04ca1a078fda8c8772faae2/libtorrent-2.1.1-cp313-cp313-macosx_15_0_x86_64.whl",
+      "sha256": "baea3ba15ad692d8d87b6cf6685c91611f0ce0367ce6213c4ce52f20e62a5b8c"
+    },
+    "amule": {
+      "url": "https://github.com/amule-org/amule/releases/download/3.1.0/aMule-3.1.0-macOS-universal2.dmg",
+      "sha256": "859d445e3852dc4e296408a8abb62ace48b33ec300100b90b6af7acc52e506bf"
+    }
+  },
+  "linux-x64": {
+    "jackett": {
+      "url": "https://github.com/Jackett/Jackett/releases/download/v0.24.2900/Jackett.Binaries.LinuxAMDx64.tar.gz",
+      "sha256": "af3f7d6d1a9ef44fea461434e9fb5df73e53cee48849bc74965f049068c4c45e"
+    },
+    "python": {
+      "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20260901/cpython-3.13.15%2B20260901-x86_64-unknown-linux-gnu-install_only_stripped.tar.gz",
+      "sha256": "8a689a077337bea6d1c4bc0b7df1d52fcaa28f5f67e50df8bf417c1e3f9d8874"
+    },
+    "wheel": {
+      "url": "https://files.pythonhosted.org/packages/7b/e4/ef1bacf71afb4feba617aebe699ad75e9ae36f025f047fd078df3730c45e/libtorrent-2.1.1-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+      "sha256": "c81d768e04915c1627ac108a6abfa64c740bdd1a1634d5fffcdc56ed6e6d915f"
+    },
+    "amule": {
+      "url": "https://github.com/amule-org/amule/releases/download/3.1.0/aMule-3.1.0-Linux-x64-static.tar.gz",
+      "sha256": "e700f8820464075203b0ace4cb421d80599f3132778581d200a1501f7fd92162"
+    }
+  },
+  "macos-arm64": {
+    "jackett": {
+      "url": "https://github.com/Jackett/Jackett/releases/download/v0.24.2900/Jackett.Binaries.macOSARM64.tar.gz",
+      "sha256": "313a2886fb17cc5b227af756ccbc8ab7f4e330eb7dbefacc00ba2f361d9ad7c0"
+    },
+    "python": {
+      "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20260901/cpython-3.13.15%2B20260901-aarch64-apple-darwin-install_only_stripped.tar.gz",
+      "sha256": "d3904bd6a072246e07aa0bdadee9a14e80521e42a943c0848059feb16a2816dc"
+    },
+    "wheel": {
+      "url": "https://files.pythonhosted.org/packages/8b/31/e38b29f397ef5ba615136a9ae1c9795d71d3d5856c43c12a20aab058e513/libtorrent-2.1.1-cp313-cp313-macosx_14_0_arm64.whl",
+      "sha256": "94767ff3e8bf4fb35cff3f638188ba5ca69dec331bf3b96254289bee635102a1"
+    },
+    "amule": {
+      "url": "https://github.com/amule-org/amule/releases/download/3.1.0/aMule-3.1.0-macOS-universal2.dmg",
+      "sha256": "859d445e3852dc4e296408a8abb62ace48b33ec300100b90b6af7acc52e506bf"
+    }
+  },
+  "sources": {
+    "amule": {
+      "url": "https://github.com/amule-org/amule/releases/download/3.1.0/aMule-3.1.0-src.tar.gz",
+      "sha256": "a05f9b655f4407f18179640f65ae50c93bd36a90c268c8fff7adc575fe8eb041"
+    },
+    "jackett": {
+      "url": "https://github.com/Jackett/Jackett/archive/refs/tags/v0.24.2900.zip",
+      "sha256": "30BDAC79721FF3F28034FD3B2EE90216250E149CD633E8992976B63082CE4149"
+    }
+  }
+}

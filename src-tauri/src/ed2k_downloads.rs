@@ -1032,6 +1032,11 @@ mod tests {
     use super::*;
     static ENGINE_TEST: AsyncMutex<()> = AsyncMutex::const_new(());
     // Isolate only the test fixture mutex; shipped engine bytes remain official.
+    #[cfg(not(windows))]
+    fn isolated_engine(_root: &Path) -> PathBuf {
+        crate::platform::dev_amule()
+    }
+    #[cfg(windows)]
     fn isolated_engine(root: &Path) -> PathBuf {
         let source = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../vendor/amule-3.1.0/amule-portable-x64/bin/amuled.exe");
@@ -1246,37 +1251,43 @@ mod tests {
         let exe = isolated_engine(&root);
         // wxWidgets uses a global Windows mutex regardless of --config-dir.
         // Test clients use distinct fixture mutexes; the distributed engine remains official.
-        let fixture = root.join("test-seeder");
-        std::fs::create_dir_all(&fixture).unwrap();
-        for entry in std::fs::read_dir(exe.parent().unwrap()).unwrap() {
-            let p = entry.unwrap().path();
-            if p.extension().is_some_and(|e| e == "dll") {
-                std::fs::hard_link(&p, fixture.join(p.file_name().unwrap())).unwrap();
-            }
-        }
-        let mut seed_binary = std::fs::read(&exe).unwrap();
-        let mut replacements = 0;
-        for needle in [
-            b"zuleLock".to_vec(),
-            "zuleLock"
-                .encode_utf16()
-                .flat_map(u16::to_le_bytes)
-                .collect::<Vec<_>>(),
-        ] {
-            let mut at = 0;
-            while at + needle.len() <= seed_binary.len() {
-                if seed_binary[at..at + needle.len()] == needle {
-                    seed_binary[at] = b't';
-                    replacements += 1;
-                    at += needle.len()
-                } else {
-                    at += 1
+        #[cfg(windows)]
+        let seed_exe = {
+            let fixture = root.join("test-seeder");
+            std::fs::create_dir_all(&fixture).unwrap();
+            for entry in std::fs::read_dir(exe.parent().unwrap()).unwrap() {
+                let p = entry.unwrap().path();
+                if p.extension().is_some_and(|e| e == "dll") {
+                    std::fs::hard_link(&p, fixture.join(p.file_name().unwrap())).unwrap();
                 }
             }
-        }
-        assert!(replacements > 0);
-        let seed_exe = fixture.join("test-seeder.exe");
-        std::fs::write(&seed_exe, seed_binary).unwrap();
+            let mut seed_binary = std::fs::read(&exe).unwrap();
+            let mut replacements = 0;
+            for needle in [
+                b"zuleLock".to_vec(),
+                "zuleLock"
+                    .encode_utf16()
+                    .flat_map(u16::to_le_bytes)
+                    .collect::<Vec<_>>(),
+            ] {
+                let mut at = 0;
+                while at + needle.len() <= seed_binary.len() {
+                    if seed_binary[at..at + needle.len()] == needle {
+                        seed_binary[at] = b't';
+                        replacements += 1;
+                        at += needle.len()
+                    } else {
+                        at += 1
+                    }
+                }
+            }
+            assert!(replacements > 0);
+            let seed_exe = fixture.join("test-seeder.exe");
+            std::fs::write(&seed_exe, seed_binary).unwrap();
+            seed_exe
+        };
+        #[cfg(not(windows))]
+        let seed_exe = exe.clone();
         let seed = Downloads::new(seed_exe, root.join("seed-config")).unwrap();
         server_met(&seed.data, ip, server_port);
         let seed_root = safe_dir(&root.join("seed-private")).unwrap();
@@ -1384,15 +1395,52 @@ mod tests {
         assert!(result.is_ok(), "{result:?}; logs in {}", root.display());
     }
     #[tokio::test]
-    async fn arbitrary_ed2k_folder_can_be_shared_and_removed(){
-      let _lock=ENGINE_TEST.lock().await;let root=sandbox();let engine=Downloads::new(isolated_engine(&root),root.join("config")).unwrap();let share=root.join("user-files");std::fs::create_dir(&share).unwrap();let payload=vec![31u8;65536];let file=share.join("share-test.bin");std::fs::write(&file,&payload).unwrap();let hash=hex::encode(md4::Md4::digest(&payload));
-      let result=async{
-        engine.set_shared_folders(vec![share.clone()]).await?;
-        tokio::time::timeout(Duration::from_secs(30),async{loop{let(_,rows)=engine.running.lock().await.as_mut().unwrap().client.request(0x10,vec![]).await?;if rows.iter().any(|t|t.get(0x31e).is_some_and(|h|hex::encode(&h.data)==hash)){break}tokio::time::sleep(Duration::from_millis(250)).await;}Ok::<(),String>(())}).await.map_err(|_|"No se publicó la carpeta elegida")??;
-        assert_eq!(std::fs::read(&file).unwrap(),payload);
-        let removed=std::fs::remove_file(&file);println!("Eliminar archivo compartido eD2k: {removed:?}");
-        engine.set_shared_folders(vec![]).await?;if file.exists(){std::fs::remove_file(&file).map_err(|e|e.to_string())?;}Ok::<(),String>(())
-      }.await;engine.shutdown().await;assert!(result.is_ok(),"{result:?}");
+    async fn arbitrary_ed2k_folder_can_be_shared_and_removed() {
+        let _lock = ENGINE_TEST.lock().await;
+        let root = sandbox();
+        let engine = Downloads::new(isolated_engine(&root), root.join("config")).unwrap();
+        let share = root.join("user-files");
+        std::fs::create_dir(&share).unwrap();
+        let payload = vec![31u8; 65536];
+        let file = share.join("share-test.bin");
+        std::fs::write(&file, &payload).unwrap();
+        let hash = hex::encode(md4::Md4::digest(&payload));
+        let result = async {
+            engine.set_shared_folders(vec![share.clone()]).await?;
+            tokio::time::timeout(Duration::from_secs(30), async {
+                loop {
+                    let (_, rows) = engine
+                        .running
+                        .lock()
+                        .await
+                        .as_mut()
+                        .unwrap()
+                        .client
+                        .request(0x10, vec![])
+                        .await?;
+                    if rows
+                        .iter()
+                        .any(|t| t.get(0x31e).is_some_and(|h| hex::encode(&h.data) == hash))
+                    {
+                        break;
+                    }
+                    tokio::time::sleep(Duration::from_millis(250)).await;
+                }
+                Ok::<(), String>(())
+            })
+            .await
+            .map_err(|_| "No se publicó la carpeta elegida")??;
+            assert_eq!(std::fs::read(&file).unwrap(), payload);
+            let removed = std::fs::remove_file(&file);
+            println!("Eliminar archivo compartido eD2k: {removed:?}");
+            engine.set_shared_folders(vec![]).await?;
+            if file.exists() {
+                std::fs::remove_file(&file).map_err(|e| e.to_string())?;
+            }
+            Ok::<(), String>(())
+        }
+        .await;
+        engine.shutdown().await;
+        assert!(result.is_ok(), "{result:?}");
     }
-
 }

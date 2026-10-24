@@ -1,0 +1,11 @@
+{
+  "bundle": {
+    "resources": {
+      "../vendor/amule-3.1.0/amule-portable-x64/": "amule/",
+      "../artifacts/licenses/aMule-3.1.0-source.zip": "licenses/aMule-3.1.0-source.zip",
+      "../vendor/jackett/Jackett/": "engine/",
+      "../artifacts/licenses/Jackett-v0.24.2900-source.zip": "licenses/Jackett-v0.24.2900-source.zip",
+      "../vendor/v2-runtime/": "v2/"
+    }
+  }
+}

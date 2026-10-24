@@ -227,7 +227,7 @@ impl Downloads {
             .join("staging")
             .join(id.trim_start_matches("bt2:"));
         std::fs::create_dir_all(&staging).map_err(|e| e.to_string())?;
-        let mut cmd = Command::new(self.runtime.join("python.exe"));
+        let mut cmd = Command::new(crate::platform::python(&self.runtime));
         cmd.arg("-I")
             .arg("-u")
             .arg(self.runtime.join("worker.py"))
@@ -448,7 +448,7 @@ pub fn verify(
     }
     let uri = uri.to_string();
     let temp = tempfile::tempdir().map_err(|e| e.to_string())?;
-    let mut cmd = Command::new(runtime.join("python.exe"));
+    let mut cmd = Command::new(crate::platform::python(runtime));
     cmd.arg("-I")
         .arg("-u")
         .arg(runtime.join("worker.py"))
@@ -518,10 +518,10 @@ mod tests {
     #[test]
     fn native_v2_pause_resume_and_delete() {
         let tmp = tempfile::tempdir().unwrap();
-        let runtime = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../vendor/v2-runtime");
+        let runtime = crate::platform::dev_runtime();
         let seed_dir = tmp.path().join("seed");
         std::fs::create_dir(&seed_dir).unwrap();
-        let mut child = Command::new(runtime.join("python.exe"))
+        let mut child = Command::new(crate::platform::python(&runtime))
             .arg("-I")
             .arg("-u")
             .arg(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../scripts/test-v2.py"))

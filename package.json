@@ -11,7 +11,10 @@
     "tauri": "tauri",
     "desktop": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/desktop.ps1 dev",
     "bundle": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/desktop.ps1 build",
-    "test:rust": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/desktop.ps1 test"
+    "test:rust": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/desktop.ps1 test",
+    "prepare:native": "python3 scripts/prepare-native.py",
+    "desktop:native": "npm run tauri -- dev",
+    "bundle:native": "npm run tauri -- build"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0"

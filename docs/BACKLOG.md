@@ -25,6 +25,10 @@ Updated October 25, 2026. The owner has functionally validated 0.8.0 on their Wi
 - Run prolonged Kad/transfer tests and broader relevance/coverage measurements.
 - Obtain independent security/privacy and screen-reader accessibility reviews.
 
+## Native platform work in progress
+
+Linux x64 and macOS Intel/Apple Silicon resource paths, bundled-engine preparation and native CI are now prepared. Native compile/transfer/package validation is still pending; see PLATFORMS.md. No Linux/macOS binaries have been certified by the Windows-local checks.
+
 ## Future scope
 
 Linux/macOS ports, private-source accounts/external Torznab configuration, hard CPU/total-disk limits and automatic executable rollback need additional development and validation. Current resources are Windows x64 only.

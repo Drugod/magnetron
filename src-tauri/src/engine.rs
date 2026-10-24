@@ -92,6 +92,12 @@ impl Drop for Job {
 }
 #[cfg(not(windows))]
 pub(crate) struct Job;
+#[cfg(not(windows))]
+impl Job {
+    pub(crate) fn attach(_child: &Child) -> Result<Self, String> {
+        Ok(Self)
+    }
+}
 impl Engine {
     pub fn new(executable: PathBuf, data: PathBuf) -> Arc<Self> {
         let health = std::fs::read(data.join("source-health.json"))
@@ -173,7 +179,6 @@ impl Engine {
         let mut child = command
             .spawn()
             .map_err(|e| format!("No se pudo arrancar el motor: {e}"))?;
-        #[cfg(windows)]
         {
             match Job::attach(&child) {
                 Ok(job) => *self.job.lock().map_err(|e| e.to_string())? = Some(job),
@@ -537,7 +542,7 @@ mod tests {
             .parent()
             .unwrap();
         let engine = Engine::new(
-            root.join("vendor/jackett/Jackett/JackettConsole.exe"),
+            crate::platform::dev_jackett(),
             root.join("artifacts/engine-smoke"),
         );
         let catalog = engine.catalog().await.unwrap();

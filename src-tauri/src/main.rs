@@ -12,6 +12,7 @@ mod exports;
 mod kad;
 mod links;
 mod model;
+mod platform;
 mod sharing;
 mod sources;
 mod storage;
@@ -601,7 +602,7 @@ async fn start_search(
     Ok(())
 }
 fn main() {
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, args, _| {
             links::enqueue(app, args);
             if let Some(window) = app.get_webview_window("main") {
@@ -613,6 +614,18 @@ fn main() {
         .plugin(tauri_plugin_deep_link::init())
         .setup(|app| {
             links::enqueue(app.handle(), std::env::args().skip(1));
+            use tauri_plugin_deep_link::DeepLinkExt;
+            if let Ok(Some(urls)) = app.deep_link().get_current() {
+                links::enqueue(app.handle(), urls.into_iter().map(|u| u.to_string()));
+            }
+            let link_handle = app.handle().clone();
+            app.deep_link().on_open_url(move |event| {
+                links::enqueue(
+                    &link_handle,
+                    event.urls().into_iter().map(|u| u.to_string()),
+                );
+                tray::restore(&link_handle);
+            });
             #[cfg(not(debug_assertions))]
             {
                 let _ = links::register_link_handlers(app.handle().clone());
@@ -621,11 +634,14 @@ fn main() {
             std::fs::create_dir_all(&dir)?;
             let storage =
                 Storage::new(&dir.join("magnet.sqlite")).map_err(std::io::Error::other)?;
-            let mut executable = app.path().resource_dir()?.join("engine/JackettConsole.exe");
+            let mut executable = app
+                .path()
+                .resource_dir()?
+                .join("engine")
+                .join(platform::jackett_name());
             #[cfg(debug_assertions)]
             if !executable.is_file() {
-                executable = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-                    .join("../vendor/jackett/Jackett/JackettConsole.exe");
+                executable = platform::dev_jackett();
             }
             let engine = engine::Engine::new(executable, dir.join("engine"));
             let update_data = dir.join("engine");
@@ -640,18 +656,17 @@ fn main() {
             });
             let downloads =
                 downloads::Downloads::new(dir.join("downloads")).map_err(std::io::Error::other)?;
-            let mut ed2k_executable = app.path().resource_dir()?.join("amule/bin/amuled.exe");
+            let mut ed2k_executable = app.path().resource_dir()?.join(platform::amule_relative());
             #[cfg(debug_assertions)]
             if !ed2k_executable.is_file() {
-                ed2k_executable = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-                    .join("../vendor/amule-3.1.0/amule-portable-x64/bin/amuled.exe");
+                ed2k_executable = platform::dev_amule();
             }
             let ed2k_downloads =
                 ed2k_downloads::Downloads::new(ed2k_executable, dir.join("ed2k-downloads"))
                     .map_err(std::io::Error::other)?;
             let sharing = sharing::Sharing::new(downloads.clone(), ed2k_downloads.clone());
             let runtime = if cfg!(debug_assertions) {
-                std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../vendor/v2-runtime")
+                platform::dev_runtime()
             } else {
                 app.path().resource_dir()?.join("v2")
             };
@@ -757,6 +772,23 @@ fn main() {
             pause_dht,
             index_status
         ])
-        .run(tauri::generate_context!())
+        .build(tauri::generate_context!())
         .expect("No se pudo iniciar MAGNETRON");
+    app.run(|handle, event| {
+        #[cfg(target_os = "macos")]
+        match event {
+            tauri::RunEvent::Reopen { .. } => tray::restore(handle),
+            tauri::RunEvent::ExitRequested { api, .. } => {
+                if !tray::is_exiting(handle) {
+                    api.prevent_exit();
+                    tray::exit(handle.clone());
+                }
+            }
+            _ => {}
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            let _ = (handle, event);
+        }
+    });
 }

@@ -1,0 +1,14 @@
+{
+  "bundle": {
+    "targets": ["app", "dmg"],
+    "resources": {
+      "../vendor/native/engine/": "engine/",
+      "../vendor/native/amule/": "amule/",
+      "../vendor/native/v2/": "v2/",
+      "../vendor/native/licenses/": "licenses/"
+    },
+    "macOS": {
+      "minimumSystemVersion": "15.0"
+    }
+  }
+}

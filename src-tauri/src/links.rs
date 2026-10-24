@@ -85,7 +85,15 @@ pub fn parse_download_links(text: String) -> Result<Vec<Link>, String> {
 #[tauri::command]
 pub fn register_link_handlers(app: tauri::AppHandle) -> Result<(), String> {
     use tauri_plugin_deep_link::DeepLinkExt;
-    app.deep_link().register_all().map_err(|e| e.to_string())
+    #[cfg(not(target_os = "macos"))]
+    {
+        app.deep_link().register_all().map_err(|e| e.to_string())
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let _ = app;
+        Ok(())
+    }
 }
 #[cfg(test)]
 mod tests {

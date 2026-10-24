@@ -9,6 +9,10 @@ pub struct TrayState {
     quit: MenuItem<tauri::Wry>,
     exiting: AtomicBool,
 }
+#[cfg(target_os = "macos")]
+pub fn is_exiting(app: &tauri::AppHandle) -> bool {
+    app.state::<TrayState>().exiting.load(Ordering::SeqCst)
+}
 pub fn restore(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.unminimize();

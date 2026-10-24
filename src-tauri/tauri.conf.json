@@ -26,38 +26,26 @@
   "plugins": {
     "deep-link": {
       "desktop": {
-        "schemes": [
-          "ed2k",
-          "magnet"
-        ]
+        "schemes": ["ed2k", "magnet"]
       }
     }
   },
   "bundle": {
     "active": true,
-    "targets": [
-      "nsis"
-    ],
-    "shortDescription": "Búsqueda unificada de torrents autorizados",
+    "targets": ["nsis"],
+    "shortDescription": "Unified BitTorrent and eD2k search and downloads",
     "license": "GPL-3.0-only",
     "category": "Utility",
     "windows": {
       "nsis": {
         "displayLanguageSelector": false,
-        "languages": [
-          "Spanish"
-        ]
+        "languages": ["Spanish"]
       }
     },
     "resources": {
       "../LICENSE": "licenses/MAGNETRON-GPL-3.0.txt",
-      "../vendor/amule-3.1.0/amule-portable-x64/": "amule/",
-      "../artifacts/licenses/aMule-3.1.0-source.zip": "licenses/aMule-3.1.0-source.zip",
-      "../vendor/jackett/Jackett/": "engine/",
-      "../artifacts/licenses/Jackett-v0.24.2900-source.zip": "licenses/Jackett-v0.24.2900-source.zip",
       "../artifacts/licenses/librqbit-LICENSE.txt": "licenses/librqbit-LICENSE.txt",
-      "../artifacts/licenses/THIRD-PARTY-NOTICES.txt": "licenses/THIRD-PARTY-NOTICES.txt",
-      "../vendor/v2-runtime/": "v2/"
+      "../artifacts/licenses/THIRD-PARTY-NOTICES.txt": "licenses/THIRD-PARTY-NOTICES.txt"
     }
   }
 }

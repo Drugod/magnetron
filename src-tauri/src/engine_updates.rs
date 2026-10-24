@@ -44,7 +44,10 @@ pub fn selected(data: &Path) -> Option<PathBuf> {
     if !valid_version(&s.version) {
         return None;
     }
-    let exe = root.join(s.version).join("Jackett/JackettConsole.exe");
+    let exe = root
+        .join(s.version)
+        .join("Jackett")
+        .join(crate::platform::jackett_name());
     exe.is_file().then_some(exe)
 }
 pub fn reject(data: &Path) {
@@ -84,6 +87,17 @@ async fn get(client: &reqwest::Client, url: &str, max: usize) -> Result<Vec<u8>,
     Ok(bytes)
 }
 fn extract(bytes: &[u8], root: &Path) -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        extract_zip(bytes, root)
+    }
+    #[cfg(not(windows))]
+    {
+        extract_tar(bytes, root)
+    }
+}
+#[cfg(windows)]
+fn extract_zip(bytes: &[u8], root: &Path) -> Result<(), String> {
     let mut zip = zip::ZipArchive::new(std::io::Cursor::new(bytes)).map_err(|e| e.to_string())?;
     if zip.len() > 10000 {
         return Err("Demasiados archivos en la actualización".into());
@@ -124,6 +138,72 @@ fn extract(bytes: &[u8], root: &Path) -> Result<(), String> {
             .open(target)
             .map_err(|e| e.to_string())?;
         std::io::copy(&mut file, &mut output).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+#[cfg(not(windows))]
+fn extract_tar(bytes: &[u8], root: &Path) -> Result<(), String> {
+    use std::os::unix::fs::PermissionsExt;
+    let mut archive = tar::Archive::new(flate2::read::GzDecoder::new(bytes));
+    let mut size = 0u64;
+    let mut count = 0;
+    let mut seen = std::collections::HashSet::new();
+    for entry in archive.entries().map_err(|e| e.to_string())? {
+        let mut entry = entry.map_err(|e| e.to_string())?;
+        count += 1;
+        if count > 10000 {
+            return Err("Too many update entries".into());
+        }
+        let kind = entry.header().entry_type();
+        if !kind.is_file() && !kind.is_dir() {
+            return Err("Links and special update entries are not allowed".into());
+        }
+        let original = entry.path().map_err(|e| e.to_string())?;
+        let mut relative = PathBuf::new();
+        for component in original.components() {
+            match component {
+                std::path::Component::CurDir => {}
+                std::path::Component::Normal(c) => relative.push(c),
+                _ => return Err("Unsafe update path".into()),
+            }
+        }
+        if relative.as_os_str().is_empty() {
+            continue;
+        }
+        if relative.to_string_lossy().contains([':', '\\'])
+            || !seen.insert(relative.to_string_lossy().to_lowercase())
+        {
+            return Err("Unsafe or duplicate update path".into());
+        }
+        size = size
+            .checked_add(entry.size())
+            .ok_or("Invalid update size")?;
+        if size > 600 * 1024 * 1024 {
+            return Err("Update too large".into());
+        }
+        let target = root.join(relative);
+        if kind.is_dir() {
+            std::fs::create_dir_all(target).map_err(|e| e.to_string())?;
+            continue;
+        }
+        if let Some(parent) = target.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+        let mut output = std::fs::OpenOptions::new()
+            .create_new(true)
+            .write(true)
+            .open(&target)
+            .map_err(|e| e.to_string())?;
+        std::io::copy(&mut entry, &mut output).map_err(|e| e.to_string())?;
+        std::fs::set_permissions(
+            target,
+            std::fs::Permissions::from_mode(if entry.header().mode().unwrap_or(0) & 0o111 != 0 {
+                0o755
+            } else {
+                0o644
+            }),
+        )
+        .map_err(|e| e.to_string())?;
     }
     Ok(())
 }
@@ -187,15 +267,18 @@ pub async fn check(data: PathBuf) -> Result<(), String> {
         .as_array()
         .and_then(|a| {
             a.iter()
-                .find(|a| a["name"] == "Jackett.Binaries.Windows.zip")
+                .find(|a| a["name"] == crate::platform::jackett_asset())
         })
-        .ok_or("Falta el paquete Windows")?;
+        .ok_or("Falta el paquete de esta plataforma")?;
     let digest = asset["digest"]
         .as_str()
         .and_then(|v| v.strip_prefix("sha256:"))
         .filter(|v| v.len() == 64 && v.bytes().all(|c| c.is_ascii_hexdigit()))
         .ok_or("La versión no publica una huella SHA-256")?;
-    let url=format!("https://github.com/Jackett/Jackett/releases/download/{version}/Jackett.Binaries.Windows.zip");
+    let url = format!(
+        "https://github.com/Jackett/Jackett/releases/download/{version}/{}",
+        crate::platform::jackett_asset()
+    );
     let bytes = get(&client, &url, 150 * 1024 * 1024).await?;
     if !hex::encode(Sha256::digest(&bytes)).eq_ignore_ascii_case(digest) {
         return Err("La huella de la actualización no coincide".into());
@@ -218,7 +301,10 @@ pub async fn check(data: PathBuf) -> Result<(), String> {
     zip::ZipArchive::new(std::io::Cursor::new(&source))
         .map_err(|_| "Código fuente oficial inválido")?;
     std::fs::write(stage.path().join("Jackett-source.zip"), source).map_err(|e| e.to_string())?;
-    let exe = stage.path().join("Jackett/JackettConsole.exe");
+    let exe = stage
+        .path()
+        .join("Jackett")
+        .join(crate::platform::jackett_name());
     if !exe.is_file() {
         return Err("Paquete oficial incompleto".into());
     }
@@ -261,8 +347,7 @@ mod tests {
             .is_file());
         // A candidate which no longer starts must never prevent use of the bundled engine.
         std::fs::write(selected(&root).unwrap(), b"invalid executable").unwrap();
-        let bundled = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../vendor/jackett/Jackett/JackettConsole.exe");
+        let bundled = crate::platform::dev_jackett();
         let fallback = crate::engine::Engine::new(bundled, root.clone());
         assert!(!fallback.catalog().await.unwrap().is_empty());
         drop(fallback);
@@ -281,5 +366,48 @@ mod tests {
             .unwrap();
         let bytes = output.finish().unwrap().into_inner();
         assert!(extract(&bytes, temp.path()).is_err());
+    }
+    #[cfg(not(windows))]
+    #[test]
+    fn native_archive_preserves_execute_bits_and_rejects_links() {
+        use std::os::unix::fs::PermissionsExt;
+        fn archive(link: bool) -> Vec<u8> {
+            let gz = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+            let mut builder = tar::Builder::new(gz);
+            let mut header = tar::Header::new_gnu();
+            header.set_mode(0o755);
+            if link {
+                header.set_entry_type(tar::EntryType::Symlink);
+                header.set_size(0);
+                header.set_link_name("../../outside").unwrap();
+            } else {
+                header.set_size(4);
+            }
+            header.set_cksum();
+            builder
+                .append_data(
+                    &mut header,
+                    "Jackett/jackett",
+                    if link { &b""[..] } else { &b"test"[..] },
+                )
+                .unwrap();
+            builder.into_inner().unwrap().finish().unwrap()
+        }
+        let temp = tempfile::tempdir().unwrap();
+        extract(&archive(false), temp.path()).unwrap();
+        assert_eq!(
+            std::fs::read(temp.path().join("Jackett/jackett")).unwrap(),
+            b"test"
+        );
+        assert_ne!(
+            std::fs::metadata(temp.path().join("Jackett/jackett"))
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o111,
+            0
+        );
+        let other = tempfile::tempdir().unwrap();
+        assert!(extract(&archive(true), other.path()).is_err());
     }
 }

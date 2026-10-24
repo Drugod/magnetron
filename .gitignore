@@ -37,3 +37,7 @@ vendor/
 *.sqlite3-*
 .DS_Store
 Thumbs.db
+
+# Python build helpers
+__pycache__/
+*.py[cod]

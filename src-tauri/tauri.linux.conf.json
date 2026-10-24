@@ -1,0 +1,11 @@
+{
+  "bundle": {
+    "targets": ["deb", "appimage"],
+    "resources": {
+      "../vendor/native/engine/": "engine/",
+      "../vendor/native/amule/": "amule/",
+      "../vendor/native/v2/": "v2/",
+      "../vendor/native/licenses/": "licenses/"
+    }
+  }
+}
