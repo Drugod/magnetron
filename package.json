@@ -26,5 +26,8 @@
     "typescript": "^5.9.0",
     "vite": "^7.0.0",
     "vitest": "^5.0.5"
+  },
+  "overrides": {
+    "decimal.js": "10.6.0"
   }
 }
