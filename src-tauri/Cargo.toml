@@ -44,6 +44,10 @@ zip = { version = "6", default-features = false, features = ["deflate"] }
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = ["Win32_System_JobObjects", "Win32_System_Threading", "Win32_Foundation", "Win32_Security"] }
 
+# tauri-plugin-deep-link 2.6.2 constructs the two-field ParseOption API.
+[target.'cfg(target_os = "linux")'.dependencies]
+rust-ini = "=0.21.1"
+
 [profile.release]
 lto = true
 codegen-units = 1
