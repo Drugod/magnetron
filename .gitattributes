@@ -1,0 +1,7 @@
+* text=auto
+*.png binary
+*.ico binary
+*.icns binary
+
+# Preserve original upstream license formatting.
+docs/licenses/* -whitespace

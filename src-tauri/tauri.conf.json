@@ -1,0 +1,63 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "MAGNETRON",
+  "version": "0.8.0",
+  "identifier": "local.magnetforge.desktop",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://127.0.0.1:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "MAGNETRON",
+        "width": 1250,
+        "height": 850,
+        "minWidth": 800,
+        "minHeight": 600
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; connect-src ipc: http://ipc.localhost; img-src 'self' data:"
+    }
+  },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": [
+          "ed2k",
+          "magnet"
+        ]
+      }
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "nsis"
+    ],
+    "shortDescription": "Búsqueda unificada de torrents autorizados",
+    "license": "GPL-3.0-only",
+    "category": "Utility",
+    "windows": {
+      "nsis": {
+        "displayLanguageSelector": false,
+        "languages": [
+          "Spanish"
+        ]
+      }
+    },
+    "resources": {
+      "../LICENSE": "licenses/MAGNETRON-GPL-3.0.txt",
+      "../vendor/amule-3.1.0/amule-portable-x64/": "amule/",
+      "../artifacts/licenses/aMule-3.1.0-source.zip": "licenses/aMule-3.1.0-source.zip",
+      "../vendor/jackett/Jackett/": "engine/",
+      "../artifacts/licenses/Jackett-v0.24.2900-source.zip": "licenses/Jackett-v0.24.2900-source.zip",
+      "../artifacts/licenses/librqbit-LICENSE.txt": "licenses/librqbit-LICENSE.txt",
+      "../artifacts/licenses/THIRD-PARTY-NOTICES.txt": "licenses/THIRD-PARTY-NOTICES.txt",
+      "../vendor/v2-runtime/": "v2/"
+    }
+  }
+}

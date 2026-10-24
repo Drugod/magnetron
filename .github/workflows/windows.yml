@@ -1,0 +1,28 @@
+name: Windows
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - run: npm ci
+      - run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-engine.ps1
+      - run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-ed2k.ps1
+      - run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-v2.ps1
+      - run: ./vendor/v2-runtime/python.exe -I scripts/test-v2.py
+      - run: npm test
+      - run: npm run build
+      - run: npm run test:rust
+      - run: npm run bundle
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MAGNETRON-Windows-x64
+          path: src-tauri/target/release/bundle/nsis/*-setup.exe

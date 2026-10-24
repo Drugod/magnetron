@@ -1,0 +1,10 @@
+PRAGMA journal_mode=WAL;
+PRAGMA foreign_keys=ON;
+CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY,value TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS torrents(id TEXT PRIMARY KEY,title TEXT NOT NULL,json TEXT NOT NULL,observed_at INTEGER NOT NULL);
+CREATE VIRTUAL TABLE IF NOT EXISTS torrent_fts USING fts5(title,content='torrents',content_rowid='rowid', tokenize='unicode61');
+CREATE TRIGGER IF NOT EXISTS torrents_ai AFTER INSERT ON torrents BEGIN INSERT INTO torrent_fts(rowid,title) VALUES(new.rowid,new.title); END;
+CREATE TRIGGER IF NOT EXISTS torrents_ad AFTER DELETE ON torrents BEGIN INSERT INTO torrent_fts(torrent_fts,rowid,title) VALUES('delete',old.rowid,old.title); END;
+CREATE TRIGGER IF NOT EXISTS torrents_au AFTER UPDATE ON torrents BEGIN INSERT INTO torrent_fts(torrent_fts,rowid,title) VALUES('delete',old.rowid,old.title); INSERT INTO torrent_fts(rowid,title) VALUES(new.rowid,new.title); END;
+CREATE TABLE IF NOT EXISTS search_history(id INTEGER PRIMARY KEY,query TEXT NOT NULL,searched_at INTEGER NOT NULL);
+PRAGMA user_version=1;
