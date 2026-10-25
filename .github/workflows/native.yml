@@ -61,7 +61,8 @@ jobs:
       - name: Resolve the macOS runner hostname locally
         if: runner.os == 'macOS'
         run: |
-          printf '127.0.0.1 %s\n' "$(hostname)" | sudo tee -a /etc/hosts >/dev/null
+          sudo hostname localhost
+          python -c "import socket; assert socket.gethostname() == 'localhost'; assert socket.getaddrinfo(socket.gethostname(), None)"
       - name: Test Rust on Linux
         if: runner.os == 'Linux'
         run: xvfb-run -a cargo test --locked --manifest-path src-tauri/Cargo.toml

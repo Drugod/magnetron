@@ -71,6 +71,10 @@ def main():
     if len(engines)!=1:raise RuntimeError('Expected one Jackett executable')
     shutil.copytree(engines[0].parent,native/'engine',symlinks=True)
     if system=='linux':
+        # Optional .NET LTTng profiler targets an older liblttng-ust SONAME.
+        # MAGNETRON does not use native LTTng tracing; keep the runtime itself
+        # intact and omit this dynamically loaded diagnostics-only provider.
+        (native/'engine/libcoreclrtraceptprovider.so').unlink(missing_ok=True)
         untar(fetch(assets['amule']),stage/'amule')
         daemons=[p for p in (stage/'amule').rglob('amuled') if p.is_file()]
         if len(daemons)!=1:raise RuntimeError('Expected one aMuled executable')
