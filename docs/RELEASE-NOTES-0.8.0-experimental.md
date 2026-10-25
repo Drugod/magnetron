@@ -13,6 +13,6 @@ Native CI compilation, automated transfer tests and packaged-runtime checks pass
 
 Application automatic updates are not enabled. Install future application packages manually. Engine-source availability and transfer completion cannot be guaranteed.
 
-Please [report bugs](https://github.com/Drugod/magnetron/issues/new?template=bug_report.yml) with your version, OS, architecture, package type and reproduction steps. Redact personal information. See [testing guidance](https://github.com/Drugod/magnetron/blob/codex/native-platforms/docs/TESTING.md).
+Please [report bugs](https://github.com/Drugod/magnetron/issues/new?template=bug_report.yml) with your version, OS, architecture, package type and reproduction steps. Redact personal information. See [testing guidance](https://github.com/Drugod/magnetron/blob/main/docs/TESTING.md).
 
-Release preparation must attach the reviewed installers, SHA-256 checksums and matching source. This document is a draft; it does not publish a Release.
+Installers are built from commit `e36074cca1f694454be9dc19161bfbce91b38580`. The release tag adds documentation and issue forms without changing application code. Check downloads against `SHA256SUMS.txt`. Matching project source is attached; third-party notices and corresponding engine sources are included in the packages.

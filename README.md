@@ -12,7 +12,7 @@ Linux x64, macOS Apple Silicon and macOS Intel packages have passed native CI co
 
 ## Download
 
-Get the installer from [Releases](https://github.com/Drugod/magnetron/releases), once published. Choose `MAGNETRON_0.8.0_x64-setup.exe`: it includes the required engines and libraries.
+Get the packages from [Releases](https://github.com/Drugod/magnetron/releases/tag/v0.8.0). Linux and macOS packages are experimental. Choose `MAGNETRON_0.8.0_x64-setup.exe`: it includes the required engines and libraries.
 
 The application executable alone is **not** a complete portable package. Keep `engine/`, `amule/`, `v2/` and `licenses/` beside it. Generated distributions are excluded from source commits.
 
