@@ -14,7 +14,7 @@ Updated October 25, 2026. The owner has functionally validated 0.8.0 on their Wi
 - Links/CSV/JSON export, ranking improvements and keyboard download actions. Favourites navigation and actions were removed for simplicity in 0.8.1.
 - Spanish/English and light/dark/system appearance controls at the top right, close-to-tray and Quit.
 - Windows portable/NSIS packaging, pinned preparation scripts and license/source notices.
-- Windows 0.8.1 signed update channel implementation, periodic checks and integrated update notice; release/upgrade validation pending.
+- Windows 0.8.1 signed update channel, periodic checks and integrated update notice; installer upgrade and real signed-installer validation passed in CI.
 
 ## Release work remaining
 
@@ -35,7 +35,7 @@ Linux x64 (DEB/AppImage), macOS Apple Silicon and macOS Intel (DMG/app archive) 
 - Collect reproducible community reports using the issue forms and TESTING.md.
 - Triage reports by platform and fix installation, transfer and file-management failures first.
 - Complete Apple signing/notarization when developer credentials become available.
-- Validate Windows installer upgrade and signed-channel behaviour before publishing 0.8.1.
+- Publish the reviewed 0.8.1 bootstrap release. CI verified upgrade from 0.8.0, preservation of an application-data marker, acceptance of the real signed installer, same-version rejection and one-byte tamper rejection. A graphical end-to-end update on an end-user desktop remains pending.
 
 ## Future scope
 

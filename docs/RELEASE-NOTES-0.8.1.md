@@ -11,3 +11,7 @@ Linux/macOS application updates remain manual. Those platforms stay experimental
 The application does not install updates silently. Download/source availability and completion are not guaranteed. Report reproducible problems through the repository issue forms, after redacting personal information.
 
 Language and appearance controls now sit at the top right of the main workspace. Favourites navigation and result-star actions have been removed.
+
+Windows, Linux x64 and both Mac architectures passed native CI. The Windows installer passed upgrade testing from 0.8.0 and real signed-installer validation. This does not replace end-user desktop testing; Linux/macOS stay experimental and Mac packages are not signed/notarized.
+
+The attached application source matches build commit `f1c594111e59acf570a8a3c845153e9bd7749c18`; release preparation may add documentation-only commits. Check downloaded assets against SHA256SUMS.txt.
