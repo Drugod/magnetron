@@ -114,6 +114,38 @@ fn ini_path(path: &Path) -> String {
     };
     plain.replace('\\', "/")
 }
+#[cfg(all(test, target_os = "macos"))]
+fn print_startup_stack_summary(pid: u32) {
+    // Inspect only our test child, retaining no raw stack or process environment.
+    let Ok(output) = Command::new("/usr/bin/sample")
+        .args([pid.to_string(), "1".into(), "1".into()])
+        .output()
+    else {
+        return;
+    };
+    let stack = String::from_utf8_lossy(&output.stdout).to_lowercase();
+    for marker in [
+        "getaddrinfo",
+        "gethostby",
+        "wxgetfullhostname",
+        "wxgethostname",
+        "wxassert",
+        "showalert",
+        "mach_msg",
+        "semaphore_wait",
+        "dispatch_sync",
+        "cfnetwork",
+        "nsapplication",
+        "initcommon",
+        "oninit",
+        "getconfigdir",
+    ] {
+        eprintln!(
+            "aMuled startup stack category {marker}: {}",
+            stack.contains(marker)
+        );
+    }
+}
 #[cfg(test)]
 fn print_startup_summary(data: &Path) {
     use std::io::Read;
@@ -420,6 +452,8 @@ impl Downloads {
             tokio::time::sleep(Duration::from_millis(250)).await;
         }
         let Some(mut client) = connection else {
+            #[cfg(all(test, target_os = "macos"))]
+            print_startup_stack_summary(child.id());
             let _ = child.kill();
             let _ = child.wait();
             #[cfg(test)]

@@ -64,7 +64,7 @@ jobs:
       - name: Test bundled v2 transfer worker
         run: vendor/native/v2/bin/python3 -I scripts/test-v2.py
       - name: Build native packages
-        run: npm run tauri -- build
+        run: npm run tauri -- build --verbose
       - name: Test relocated package runtime
         run: python scripts/test-native-package.py
       - name: Package macOS application archive
