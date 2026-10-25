@@ -11,8 +11,8 @@ Updated October 25, 2026. The owner has functionally validated 0.8.0 on their Wi
 - Local index, optional DHT metadata discovery, record/text budgets, recovery timing and local-hour scheduling.
 - Experimental Kad bootstrap/search: one public test connected and completed with zero complete-source results.
 - Explicit per-network arbitrary-folder sharing, read-only folder torrent storage and copyable magnets.
-- Persistent favourites, links/CSV/JSON export, ranking improvements and keyboard download actions.
-- Spanish/English, light/dark/system appearance, close-to-tray and Quit.
+- Links/CSV/JSON export, ranking improvements and keyboard download actions. Favourites navigation and actions were removed for simplicity in 0.8.1.
+- Spanish/English and light/dark/system appearance controls at the top right, close-to-tray and Quit.
 - Windows portable/NSIS packaging, pinned preparation scripts and license/source notices.
 - Windows 0.8.1 signed update channel implementation, periodic checks and integrated update notice; release/upgrade validation pending.
 

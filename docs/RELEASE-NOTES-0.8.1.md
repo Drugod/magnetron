@@ -9,3 +9,5 @@ The published 0.8.0 binary has no update channel configured and cannot enable it
 Linux/macOS application updates remain manual. Those platforms stay experimental. Update-manifest signing is separate from Authenticode: the Windows installer still has no recognised publisher certificate.
 
 The application does not install updates silently. Download/source availability and completion are not guaranteed. Report reproducible problems through the repository issue forms, after redacting personal information.
+
+Language and appearance controls now sit at the top right of the main workspace. Favourites navigation and result-star actions have been removed.

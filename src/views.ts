@@ -12,13 +12,7 @@ export function showView(view: View) {
     const panel = document.getElementById(id);
     if (panel) panel.hidden = name !== view;
   }
-  for (const name of [
-    "search",
-    "downloads",
-    "settings",
-    "sources",
-    "favorites",
-  ]) {
+  for (const name of ["search", "downloads", "settings", "sources"]) {
     const nav = document.getElementById(`nav-${name}`);
     nav?.classList.toggle("active", name === view);
     if (name === view) nav?.setAttribute("aria-current", "page");

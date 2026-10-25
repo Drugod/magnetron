@@ -45,10 +45,11 @@ function icon(name: keyof typeof icons) {
 }
 const app = document.querySelector<HTMLDivElement>("#app")!;
 app.innerHTML = `
-<aside class="sidebar"><a class="brand" href="#" aria-label="MAGNETRON inicio"><span class="brandmark">∩</span> MAGNETRON<span class="beta">0.7.0</span></a>
+<aside class="sidebar"><a class="brand" href="#" aria-label="MAGNETRON inicio"><span class="brandmark">∩</span> MAGNETRON<span class="beta">0.8.1</span></a>
 <nav><button class="nav active" id="nav-search">${icon("search")}Explorar</button></nav><button class="settings-gear" id="nav-settings" aria-label="Ajustes" title="Ajustes">${icon("settings")}</button>
 </aside>
 <div class="workspace">
+<header class="window-controls" aria-label="Preferencias rápidas"><select id="language-select" aria-label="Idioma" title="Idioma"><option value="es" data-no-i18n>Español</option><option value="en" data-no-i18n>English</option></select><select id="appearance-select" aria-label="Apariencia" title="Apariencia"><option value="system">Sistema</option><option value="light">Claro</option><option value="dark">Oscuro</option></select></header>
 <main><h1 class="search-title">Buscar</h1>
 <form id="search-form" class="search-box">${icon("search")}<textarea id="query" rows="1" maxlength="1000000" placeholder="Buscar o pegar enlaces…" autocomplete="off" aria-label="Buscar o pegar enlaces" spellcheck="false"></textarea><button type="button" id="clear-search" class="clear-search" aria-label="Limpiar búsqueda" title="Limpiar búsqueda" hidden>×</button><kbd>Ctrl K</kbd><button type="submit" id="search-button" aria-label="Buscar o descargar">${icon("arrow")}</button></form>
 <section id="browser-notice" class="notice" hidden>Vista previa de interfaz. La búsqueda real y SQLite funcionan en la aplicación de escritorio. Ejecuta <code>npm run desktop</code>.</section>
@@ -126,9 +127,6 @@ app.insertAdjacentHTML(
 let settings: Settings = { ...defaults };
 let pendingShares: SharedFolder[] = [];
 let results: Torrent[] = [];
-let savedItems: Torrent[] = [];
-let savedIds = new Set<string>();
-let showSaved = false;
 let currentId = "";
 let searchRequests: Promise<void> = Promise.resolve();
 let currentQuery = "";
@@ -161,10 +159,7 @@ $("#settings-form").insertAdjacentHTML(
   "afterbegin",
   `<h3>Descargas</h3><label for="download-folder">Carpeta de descarga</label><div class="folder-setting"><input id="download-folder" name="download_folder" readonly placeholder="Se preguntará en la primera descarga"><button type="button" id="choose-default-folder" class="text-button">Elegir carpeta</button><button type="button" id="reset-default-folder" class="text-button">Quitar</button></div><p class="muted">Los archivos se guardan directamente aquí, sin carpetas añadidas por MAGNETRON.</p><label class="setting-row">Límite de bajada (KiB/s)<input name="download_limit_kib" type="number" min="0" max="1048576" step="1" required></label><label class="setting-row">Límite de subida (KiB/s)<input name="upload_limit_kib" type="number" min="0" max="1048576" step="1" required></label><p class="muted">0 = sin límite. Mínimo limitado: 32 KiB/s. Se reparte entre BitTorrent y eD2k cuando ambas redes están activas.</p>`,
 );
-$("#settings-form").insertAdjacentHTML(
-  "afterbegin",
-  `<section class="appearance-settings"><h3>Personalización</h3><label class="setting-row"><span>Idioma</span><select id="language-select" aria-label="Idioma"><option value="es" data-no-i18n>Español</option><option value="en" data-no-i18n>English</option></select></label><label class="setting-row"><span>Apariencia</span><select id="appearance-select" aria-label="Apariencia"><option value="system">Sistema</option><option value="light">Claro</option><option value="dark">Oscuro</option></select></label></section>`,
-);
+
 for (const name of ["ubuntu", "debian", "archive"])
   document.querySelector(`[name="${name}"]`)?.closest("label")?.remove();
 const duplicateSourcesHeading = Array.from(
@@ -178,13 +173,13 @@ const localIndex = document
   .querySelector('[name="local_index"]')
   ?.closest("label");
 if (localIndex) $("#sources-dialog").prepend(localIndex);
-$(".appearance-settings").insertAdjacentHTML(
+$("#settings-form").insertAdjacentHTML(
   "beforeend",
   '<p class="muted background-note">Al cerrar la ventana, las descargas continúan en la bandeja del sistema. Para cerrar el programa, elige Salir en su icono.</p>',
 );
 $("#settings-form .dialog-actions").insertAdjacentHTML(
   "beforebegin",
-  `<details class="advanced-settings"><summary>Carpetas compartidas</summary><p class="muted">Solo se comparten las carpetas que actives, incluidos sus subdirectorios. BitTorrent crea un enlace magnet para compartir esa carpeta; eD2k publica sus archivos. Durante las descargas se siguen intercambiando piezas.</p><div id="shared-folders"></div><div class="dialog-actions"><button type="button" id="add-shared-folder" class="text-button">Añadir carpeta</button><button type="button" id="refresh-shares" class="text-button">Actualizar archivos compartidos</button></div><p id="sharing-feedback" role="status"></p></details><details class="advanced-settings"><summary>Índice y recursos</summary><label class="setting-row"><span>Rastreo DHT programado</span><input type="checkbox" name="discovery_enabled"></label><label class="setting-row">Desde la hora (0–23)<input type="number" name="discovery_start_hour" min="0" max="23" required></label><label class="setting-row">Hasta la hora (0–24)<input type="number" name="discovery_end_hour" min="0" max="24" required></label><label class="setting-row">Máximo de registros<input type="number" name="index_max_records" min="1000" max="1000000" required></label><label class="setting-row">Presupuesto de metadatos (MiB)<input type="number" name="index_max_mib" min="32" max="4096" required></label><label class="setting-row">Pausa entre rastreos (segundos)<input type="number" name="discovery_interval_seconds" min="2" max="3600" required></label><label class="setting-row">Tiempo por recuperación (segundos)<input type="number" name="discovery_timeout_seconds" min="5" max="120" required></label><p class="muted">Una recuperación simultánea limita CPU y red. El presupuesto corresponde al texto de metadatos; SQLite, su índice y los temporales ocupan espacio adicional. Los favoritos se conservan al limpiar la caché.</p></details>`,
+  `<details class="advanced-settings"><summary>Carpetas compartidas</summary><p class="muted">Solo se comparten las carpetas que actives, incluidos sus subdirectorios. BitTorrent crea un enlace magnet para compartir esa carpeta; eD2k publica sus archivos. Durante las descargas se siguen intercambiando piezas.</p><div id="shared-folders"></div><div class="dialog-actions"><button type="button" id="add-shared-folder" class="text-button">Añadir carpeta</button><button type="button" id="refresh-shares" class="text-button">Actualizar archivos compartidos</button></div><p id="sharing-feedback" role="status"></p></details><details class="advanced-settings"><summary>Índice y recursos</summary><label class="setting-row"><span>Rastreo DHT programado</span><input type="checkbox" name="discovery_enabled"></label><label class="setting-row">Desde la hora (0–23)<input type="number" name="discovery_start_hour" min="0" max="23" required></label><label class="setting-row">Hasta la hora (0–24)<input type="number" name="discovery_end_hour" min="0" max="24" required></label><label class="setting-row">Máximo de registros<input type="number" name="index_max_records" min="1000" max="1000000" required></label><label class="setting-row">Presupuesto de metadatos (MiB)<input type="number" name="index_max_mib" min="32" max="4096" required></label><label class="setting-row">Pausa entre rastreos (segundos)<input type="number" name="discovery_interval_seconds" min="2" max="3600" required></label><label class="setting-row">Tiempo por recuperación (segundos)<input type="number" name="discovery_timeout_seconds" min="5" max="120" required></label><p class="muted">Una recuperación simultánea limita CPU y red. El presupuesto corresponde al texto de metadatos; SQLite, su índice y los temporales ocupan espacio adicional.</p></details>`,
 );
 function renderSharedFolders() {
   const list = $("#shared-folders");
@@ -249,15 +244,14 @@ $("#refresh-shares").onclick = () => {
 async function refreshSharing() {
   if (!desktop || $("#settings-dialog").hidden) return;
   try {
-    const statuses =
-      await invoke<
-        {
-          path: string;
-          state: string;
-          magnet: string | null;
-          error: string | null;
-        }[]
-      >("sharing_status");
+    const statuses = await invoke<
+      {
+        path: string;
+        state: string;
+        magnet: string | null;
+        error: string | null;
+      }[]
+    >("sharing_status");
     for (const row of $("#shared-folders").querySelectorAll<HTMLElement>(
       ".shared-folder",
     )) {
@@ -340,9 +334,8 @@ function render() {
   const type = $<HTMLSelectElement>("#type-filter").value;
 
   const sort = $<HTMLSelectElement>("#sort").value;
-  const viewItems = showSaved ? savedItems : results;
-  const filtered = viewItems.filter(
-    (t) => matchesContent(t, type) && (showSaved || isCurrentlyAvailable(t)),
+  const filtered = results.filter(
+    (t) => matchesContent(t, type) && isCurrentlyAvailable(t),
   );
   filtered.sort((a, b) =>
     sort === "size"
@@ -386,17 +379,15 @@ function render() {
       ),
       textEl(
         "span",
-        showSaved && !isCurrentlyAvailable(t)
-          ? "Guardado · vuelve a comprobar al descargar"
-          : t.network === "ed2k"
-            ? `eD2k · ${t.complete_sources_reported} completas (red)`
-            : ["verified", "verified_v2"].includes(t.availability_status)
-              ? isCurrentlyAvailable(t)
-                ? "BitTorrent · Fuente completa accesible"
-                : "Guardado · vuelve a comprobar al descargar"
-              : t.availability_status === "reported"
-                ? "Reportada"
-                : "Sin comprobar",
+        t.network === "ed2k"
+          ? `eD2k · ${t.complete_sources_reported} completas (red)`
+          : ["verified", "verified_v2"].includes(t.availability_status)
+            ? isCurrentlyAvailable(t)
+              ? "BitTorrent · Fuente completa accesible"
+              : "Guardado · vuelve a comprobar al descargar"
+            : t.availability_status === "reported"
+              ? "Reportada"
+              : "Sin comprobar",
         "availability",
       ),
     );
@@ -454,32 +445,7 @@ function render() {
     body.append(details);
     const actions = document.createElement("div");
     actions.className = "result-actions";
-    const favorite = textEl(
-      "button",
-      savedIds.has(t.id) ? "★" : "☆",
-      "favorite-button",
-    ) as HTMLButtonElement;
-    favorite.setAttribute(
-      "aria-label",
-      savedIds.has(t.id) ? "Quitar de favoritos" : "Guardar favorito",
-    );
-    favorite.setAttribute("aria-pressed", String(savedIds.has(t.id)));
-    favorite.title = savedIds.has(t.id)
-      ? "Quitar de favoritos"
-      : "Guardar favorito";
-    favorite.onclick = async () => {
-      try {
-        const enabled = !savedIds.has(t.id);
-        await invoke("set_favorite", { torrent: t, enabled });
-        if (enabled) savedIds.add(t.id);
-        else savedIds.delete(t.id);
-        if (showSaved) savedItems = await invoke<Torrent[]>("list_favorites");
-        render();
-      } catch (e) {
-        toast(String(e));
-      }
-    };
-    actions.append(favorite);
+
     const copy = textEl("button", "Copiar", "copy-button");
     copy.onclick = async () => {
       try {
@@ -536,13 +502,6 @@ function render() {
   $("#result-count").textContent = searched
     ? `${filtered.length} ${filtered.length === 1 ? "coincidencia" : "coincidencias"}${filtered.length !== results.length ? ` de ${results.length}` : ""} · ${currentQuery}`
     : "BitTorrent comprobado en directo · eD2k con fuentes completas reportadas.";
-  if (showSaved) {
-    $("#results-title").textContent = "Favoritos";
-    $("#result-count").textContent = `${filtered.length} guardados`;
-    $<HTMLElement>("#empty h3").textContent = "Todavía no hay favoritos";
-    $("#empty p").textContent =
-      "Guarda resultados con la estrella para encontrarlos aquí.";
-  }
   $("#filter-hint").hidden = type === "all";
   updateClearButton();
 }
@@ -554,7 +513,6 @@ function finish(message: string) {
 async function search(query: string) {
   query = query.trim();
   if (!query) return;
-  showSaved = false;
   showView("search");
   if (/^(ed2k:\/\/|magnet:)/i.test(query)) {
     await downloader.addLinks(query);
@@ -656,9 +614,7 @@ function showSettings() {
 $("#nav-settings").onclick = showSettings;
 
 $("#nav-search").onclick = () => {
-  showSaved = false;
   showView("search");
-  $("#nav-favorites").classList.remove("active");
   render();
   $<HTMLInputElement>("#query").focus();
 };
@@ -748,8 +704,6 @@ async function init() {
       } else if (e.kind === "warning") toast(e.message ?? "Aviso");
     });
     settings = await invoke<Settings>("get_settings");
-    savedItems = await invoke<Torrent[]>("list_favorites");
-    savedIds = new Set(savedItems.map((t) => t.id));
     await invoke("set_ui_language", { language: getLanguage() });
     await invoke("set_window_appearance", { theme: getAppearance() });
   } catch (e) {
@@ -757,24 +711,6 @@ async function init() {
   }
 }
 void init();
-$("#nav-downloads").insertAdjacentHTML(
-  "afterend",
-  `<button class="nav" id="nav-favorites" aria-label="Favoritos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3l-5.6 2.9 1.1-6.2L3 9.6l6.2-.9Z"/></svg>Favoritos</button>`,
-);
-$("#nav-favorites").onclick = async () => {
-  try {
-    savedItems = await invoke<Torrent[]>("list_favorites");
-    savedIds = new Set(savedItems.map((t) => t.id));
-    showSaved = true;
-    showView("search");
-    $("#nav-search").classList.remove("active");
-    $("#nav-favorites").classList.add("active");
-    $("#nav-favorites").setAttribute("aria-current", "page");
-    render();
-  } catch (e) {
-    toast(String(e));
-  }
-};
 $(".filter-bar").insertAdjacentHTML(
   "beforeend",
   `<div class="export-actions"><select id="export-format" aria-label="Formato de exportación"><option value="links">Enlaces</option><option value="csv">CSV</option><option value="json">JSON</option></select><button type="button" id="export-results" class="text-button" title="Exportar resultados">Exportar</button></div>`,
@@ -782,8 +718,8 @@ $(".filter-bar").insertAdjacentHTML(
 $("#export-results").onclick = async () => {
   try {
     const type = $<HTMLSelectElement>("#type-filter").value;
-    const items = (showSaved ? savedItems : results).filter(
-      (t) => matchesContent(t, type) && (showSaved || isCurrentlyAvailable(t)),
+    const items = results.filter(
+      (t) => matchesContent(t, type) && isCurrentlyAvailable(t),
     );
     const saved = await invoke<boolean>("export_results", {
       items,
@@ -955,22 +891,34 @@ $("#settings-form .dialog-actions").insertAdjacentHTML(
   "beforebegin",
   `<details class="advanced-settings"><summary>Actualizaciones de MAGNETRON</summary><p id="app-update-state" class="muted" role="status">Las actualizaciones se comprueban automáticamente en Windows.</p><div class="dialog-actions"><button type="button" id="check-app-update" class="text-button">Comprobar actualizaciones</button><button type="button" id="install-app-update" class="text-button" hidden>Instalar actualización y cerrar</button></div></details>`,
 );
-type AppUpdateStatus = { configured: boolean; ready: boolean; version: string | null };
+type AppUpdateStatus = {
+  configured: boolean;
+  ready: boolean;
+  version: string | null;
+};
 function displayAppUpdate(s: AppUpdateStatus) {
   $("#app-update-state").textContent = !s.configured
     ? "En este sistema, descarga las nuevas versiones desde GitHub."
-    : s.ready ? "Actualización verificada y preparada" : "Ya tienes la última versión";
+    : s.ready
+      ? "Actualización verificada y preparada"
+      : "Ya tienes la última versión";
   $("#install-app-update").hidden = !s.ready;
   $("#update-available").hidden = !s.ready;
 }
-document.body.insertAdjacentHTML("beforeend", `<button id="update-available" class="update-available" hidden>Actualización disponible</button>`);
+document.body.insertAdjacentHTML(
+  "beforeend",
+  `<button id="update-available" class="update-available" hidden>Actualización disponible</button>`,
+);
 $("#update-available").onclick = () => {
   $("#nav-settings").click();
   const details = $("#app-update-state").closest("details");
   if (details) details.open = true;
   $("#app-update-state").scrollIntoView({ block: "center" });
 };
-if (isTauri()) void listen<AppUpdateStatus>("app-update-ready", e => displayAppUpdate(e.payload));
+if (isTauri())
+  void listen<AppUpdateStatus>("app-update-ready", (e) =>
+    displayAppUpdate(e.payload),
+  );
 $("#check-app-update").onclick = async () => {
   const button = $<HTMLButtonElement>("#check-app-update");
   button.disabled = true;

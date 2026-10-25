@@ -25,8 +25,11 @@ let appearance: Appearance = ["light", "dark"].includes(
 export const getLanguage = () => language;
 export const locale = () => (language === "en" ? "en-GB" : "es-ES");
 const pairs: Record<string, string> = {
-  "Las actualizaciones se comprueban automáticamente en Windows.": "Updates are checked automatically on Windows.",
-  "En este sistema, descarga las nuevas versiones desde GitHub.": "On this system, download new versions from GitHub.",
+  "Preferencias rápidas": "Quick preferences",
+  "Las actualizaciones se comprueban automáticamente en Windows.":
+    "Updates are checked automatically on Windows.",
+  "En este sistema, descarga las nuevas versiones desde GitHub.":
+    "On this system, download new versions from GitHub.",
   "Actualización disponible": "Update available",
   "Actualizaciones de MAGNETRON": "MAGNETRON updates",
   "El canal público se activará al publicar la primera versión.":
@@ -72,8 +75,8 @@ const pairs: Record<string, string> = {
   "Presupuesto de metadatos (MiB)": "Metadata budget (MiB)",
   "Pausa entre rastreos (segundos)": "Pause between lookups (seconds)",
   "Tiempo por recuperación (segundos)": "Recovery timeout (seconds)",
-  "Una recuperación simultánea limita CPU y red. El presupuesto corresponde al texto de metadatos; SQLite, su índice y los temporales ocupan espacio adicional. Los favoritos se conservan al limpiar la caché.":
-    "One recovery at a time bounds CPU and network activity. The budget covers metadata text; SQLite, its index and temporary files take additional space. Clearing the cache keeps favourites.",
+  "Una recuperación simultánea limita CPU y red. El presupuesto corresponde al texto de metadatos; SQLite, su índice y los temporales ocupan espacio adicional.":
+    "One recovery at a time bounds CPU and network activity. The budget covers metadata text; SQLite, its index and temporary files take additional space.",
   Explorar: "Explore",
   Descargas: "Downloads",
   Buscar: "Search",

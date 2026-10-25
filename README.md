@@ -30,19 +30,19 @@ Report installation, search, transfer or background-operation problems using the
 - Optional sharing of selected folders, independently for BitTorrent and eD2k.
 - Automatic public Jackett sources, failure backoff and official engine update staging with checksum validation and fallback.
 - Local SQLite index, optional DHT metadata discovery, index budgets and discovery scheduling.
-- Persistent favourites and links/CSV/JSON export.
+- Links/CSV/JSON export.
 - Spanish/English, light/dark/system appearance and background downloads in the tray.
 - Experimental Kad search, separate from BitTorrent DHT.
 
 ## Quick start
 
-1. Choose language, appearance and a download directory in **Settings**. With no saved destination, the first download asks for one.
+1. Choose language and appearance using the controls at the top right. Choose a download directory in **Settings**; with no saved destination, the first download asks for one.
 2. In **Explore**, enter a query or paste links and press Enter. Another search replaces the current query.
 3. Filter results by content type and choose **Download**.
 4. In **Downloads**, right-click a row or choose **…** to open its folder, remove the entry while keeping files, or confirm deletion of its payload.
 5. Closing the window hides it in the tray and keeps downloads running. **Quit** stops engines; unfinished transfers return paused on the next launch.
 
-Clearing a search keeps the index. Clearing the cache keeps downloads and favourites. Existing files are not silently overwritten; deletion preserves the destination and unrelated files.
+Clearing a search keeps the index. Clearing the cache keeps downloads. Existing files are not silently overwritten; deletion preserves the destination and unrelated files.
 
 ## Availability and coverage
 
