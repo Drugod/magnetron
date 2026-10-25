@@ -1,8 +1,8 @@
 """Loopback-only BEP52 transfer, collision and release checks; no public torrent."""
-import json, pathlib, subprocess, tempfile, time, sys, queue, threading
+import json, pathlib, subprocess, tempfile, time, sys, queue, threading, os
 import libtorrent as lt
 ROOT=pathlib.Path(__file__).resolve().parent.parent
-WORKER=ROOT/'src-tauri/v2/worker.py'
+WORKER=pathlib.Path(os.environ.get('MAGNETRON_TEST_WORKER',str(ROOT/'src-tauri/v2/worker.py')))
 def worker(config):
     p=subprocess.Popen([sys.executable,'-I','-u',str(WORKER)],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
     p.stdin.write(json.dumps(config)+'\n');p.stdin.flush()

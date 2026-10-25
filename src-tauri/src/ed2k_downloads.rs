@@ -114,6 +114,37 @@ fn ini_path(path: &Path) -> String {
     };
     plain.replace('\\', "/")
 }
+#[cfg(test)]
+fn print_startup_summary(data: &Path) {
+    use std::io::Read;
+    for name in ["logfile", "amule.log"] {
+        let Ok(file) = std::fs::File::open(data.join(name)) else {
+            continue;
+        };
+        let mut bytes = Vec::new();
+        let _ = file.take(65536).read_to_end(&mut bytes);
+        let text = String::from_utf8_lossy(&bytes).to_lowercase();
+        // Only fixed category names and booleans reach CI; never print log text or values.
+        for (category, marker) in [
+            ("permission_error", "permission denied"),
+            ("socket_error", "socket"),
+            ("external_connections", "external connection"),
+            ("server_list", "server.met"),
+            ("ip_filter", "ipfilter"),
+            ("download_attempt", "download"),
+            ("fatal_error", "fatal"),
+            ("initialising", "initialis"),
+        ] {
+            eprintln!(
+                "aMuled startup category {category}: {}",
+                text.contains(marker)
+            );
+        }
+        eprintln!("aMuled startup log bytes inspected: {}", bytes.len());
+        return;
+    }
+    eprintln!("aMuled startup log created: false");
+}
 impl Downloads {
     pub fn new(executable: PathBuf, data: PathBuf) -> Result<Arc<Self>, String> {
         std::fs::create_dir_all(&data).map_err(|e| e.to_string())?;
@@ -375,6 +406,8 @@ impl Downloads {
         let mut last_error = String::new();
         for _ in 0..80 {
             if child.try_wait().map_err(|e| e.to_string())?.is_some() {
+                #[cfg(test)]
+                print_startup_summary(&self.data);
                 return Err("El motor eD2k no pudo arrancar. Cierra otras instancias de aMule y vuelve a intentarlo".into());
             }
             match Client::connect(port, &pass).await {
@@ -388,6 +421,9 @@ impl Downloads {
         }
         let Some(mut client) = connection else {
             let _ = child.kill();
+            let _ = child.wait();
+            #[cfg(test)]
+            print_startup_summary(&self.data);
             return Err(format!("No se pudo conectar con eD2k: {last_error}"));
         };
         let (_, prefs) = client

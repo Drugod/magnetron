@@ -40,6 +40,10 @@ jobs:
         with:
           python-version: "3.13"
       - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          cache-on-failure: "true"
       - name: Install Linux build dependencies
         if: runner.os == 'Linux'
         run: |
@@ -61,6 +65,8 @@ jobs:
         run: vendor/native/v2/bin/python3 -I scripts/test-v2.py
       - name: Build native packages
         run: npm run tauri -- build
+      - name: Test relocated package runtime
+        run: python scripts/test-native-package.py
       - name: Package macOS application archive
         if: runner.os == 'macOS'
         run: ditto -c -k --keepParent src-tauri/target/release/bundle/macos/MAGNETRON.app artifacts/MAGNETRON-macOS-app.zip

@@ -17,6 +17,10 @@ jobs:
           node-version: "24"
           cache: npm
       - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          cache-on-failure: "true"
       - run: npm ci
       - run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-engine.ps1
       - run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-ed2k.ps1
