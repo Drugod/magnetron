@@ -73,6 +73,12 @@ jobs:
           git archive --format=zip --prefix="MAGNETRON-$version/" --output="artifacts/signed-update/MAGNETRON-$version-source.zip" HEAD
           $lines = Get-ChildItem artifacts/signed-update -File | Sort-Object Name | ForEach-Object { (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLower() + ' *' + $_.Name }
           $lines | Set-Content -Encoding ascii artifacts/signed-update/SHA256SUMS.txt
+      - name: Validate the real signed installer through the client verifier
+        shell: pwsh
+        run: |
+          $env:MAGNETRON_UPDATE_TEST_DIR = (Resolve-Path artifacts/signed-update).Path
+          cargo test --locked --manifest-path src-tauri/Cargo.toml validates_real_signed_release_before_installation -- --ignored
+          if ($LASTEXITCODE -ne 0) { throw 'Real signed installer validation failed' }
       - uses: actions/upload-artifact@v4
         with:
           name: MAGNETRON-signed-Windows-update
@@ -86,5 +92,7 @@ jobs:
           RELEASE_TAG: ${{ inputs.tag }}
         run: |
           $assets = Get-ChildItem artifacts/signed-update -File | ForEach-Object { $_.FullName }
-          gh release create $env:RELEASE_TAG @assets --verify-tag --draft --title "MAGNETRON $env:RELEASE_VERSION" --notes-file docs/RELEASE-NOTES-0.8.1.md
+          $notes = "docs/RELEASE-NOTES-$($env:RELEASE_VERSION).md"
+          if (-not (Test-Path -LiteralPath $notes)) { throw 'Missing version-specific release notes' }
+          gh release create $env:RELEASE_TAG @assets --verify-tag --draft --title "MAGNETRON $env:RELEASE_VERSION" --notes-file $notes
           if ($LASTEXITCODE -ne 0) { throw 'Draft creation failed; existing releases are never overwritten automatically' }

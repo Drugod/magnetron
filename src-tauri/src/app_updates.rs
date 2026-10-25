@@ -24,7 +24,7 @@ pub struct Status {
     version: Option<String>,
 }
 fn channel() -> Option<(&'static str, &'static str)> {
-    if !cfg!(windows) {
+    if !cfg!(all(windows, target_arch = "x86_64")) {
         return None;
     }
     Some((
@@ -124,6 +124,9 @@ fn root(app: &tauri::AppHandle) -> Result<PathBuf, String> {
         .join("app-updates"))
 }
 fn staged(root: &Path, key: &str) -> Result<Release, String> {
+    validate_staged(root, key, env!("CARGO_PKG_VERSION"))
+}
+fn validate_staged(root: &Path, key: &str, installed: &str) -> Result<Release, String> {
     if std::fs::metadata(root.join("manifest.json"))
         .map_err(|e| e.to_string())?
         .len()
@@ -133,7 +136,7 @@ fn staged(root: &Path, key: &str) -> Result<Release, String> {
     }
     let bytes = std::fs::read(root.join("manifest.json")).map_err(|e| e.to_string())?;
     let release = verify(&bytes, key)?;
-    if version(&release.version)? <= version(env!("CARGO_PKG_VERSION"))? {
+    if version(&release.version)? <= version(installed)? {
         return Err("La versión ya está instalada".into());
     }
     if std::fs::metadata(root.join("installer.exe"))
@@ -275,5 +278,36 @@ mod tests {
         for invalid in ["0.8", "0.8.1.2", "0.08.1", "0.8.-1", "0.8.+1"] {
             assert!(version(invalid).is_err());
         }
+    }
+    #[cfg(windows)]
+    #[test]
+    #[ignore = "Requires the signed installer artifact produced by the release workflow"]
+    fn validates_real_signed_release_before_installation() {
+        let source = PathBuf::from(std::env::var("MAGNETRON_UPDATE_TEST_DIR").unwrap());
+        let dir = tempfile::tempdir().unwrap();
+        let manifest = std::fs::read(source.join("windows-update.json")).unwrap();
+        let key = include_str!("../update-public-key.txt").trim();
+        let release = verify(&manifest, key).unwrap();
+        std::fs::copy(
+            source.join(format!("MAGNETRON_{}_x64-setup.exe", release.version)),
+            dir.path().join("installer.exe"),
+        )
+        .unwrap();
+        std::fs::write(dir.path().join("manifest.json"), manifest).unwrap();
+        assert!(validate_staged(dir.path(), key, "0.8.0").is_ok());
+        assert!(validate_staged(dir.path(), key, &release.version).is_err());
+        // Change one byte, preserving length: the digest must reject it.
+        use std::io::{Read, Seek, SeekFrom, Write};
+        let mut f = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(dir.path().join("installer.exe"))
+            .unwrap();
+        let mut byte = [0u8];
+        f.read_exact(&mut byte).unwrap();
+        f.seek(SeekFrom::Start(0)).unwrap();
+        f.write_all(&[byte[0] ^ 1]).unwrap();
+        drop(f);
+        assert!(validate_staged(dir.path(), key, "0.8.0").is_err());
     }
 }
