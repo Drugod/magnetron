@@ -1,8 +1,8 @@
 # Native platform builds (experimental)
 
-Windows 0.8.0 is the existing owner-validated distribution. Linux/macOS source ports and CI are prepared locally; they are not validated downloadable releases until the native workflow succeeds and packages have been tested on actual desktops.
+Windows 0.8.0 is the existing owner-validated distribution. Linux x64 and both macOS architectures have passed native CI compilation, automated transfers and relocated-package runtime checks. Experimental packages are available as workflow artifacts; end-user desktop validation is still pending.
 
-| Target | Builder | Planned packages |
+| Target | Builder | Generated packages |
 |---|---|---|
 | Linux x64 | Ubuntu 22.04 | .deb and AppImage |
 | macOS Apple Silicon | macOS 15 ARM64 | .app archive and .dmg |
@@ -43,4 +43,10 @@ Apple Developer signing/notarization and clean-machine Gatekeeper testing are no
 
 ## Windows-side checks for this port
 
-The local Windows compiler check passed, all 35 default Rust tests passed (seven public-network tests skipped), and four offline native-preparation/archive tests passed. These checks do not validate the Unix-only compiler branches or native installers; the experimental workflow must pass separately on all three native runners. macOS Dock reopen and system Quit are routed to window restoration and graceful engine shutdown.
+The local Windows compiler check passed, all 35 default Rust tests passed (seven public-network tests skipped), and five offline native-preparation/archive tests passed. These checks do not validate the Unix-only compiler branches or native installers; the experimental workflow must pass separately on all three native runners. macOS Dock reopen and system Quit are routed to window restoration and graceful engine shutdown.
+
+## Verified CI baseline
+
+Commit `e36074cca1f694454be9dc19161bfbce91b38580` passed all three native jobs in [workflow run 40147474521](https://github.com/Drugod/magnetron/actions/runs/40147474521), including 36 Rust tests per native target (seven public-network tests skipped), the v2 transfer harness, package generation and relocated-runtime checks. The Windows workflow also succeeded. This does not certify installer interaction, desktop integration or operation on every OS version.
+
+The disposable macOS runner uses a resolvable localhost hostname because aMuled performs synchronous hostname resolution during startup. No end-user hostname or DNS settings are changed by MAGNETRON. Linux packaging omits the unused optional .NET LTTng tracing provider.

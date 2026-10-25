@@ -25,12 +25,20 @@ Updated October 25, 2026. The owner has functionally validated 0.8.0 on their Wi
 - Run prolonged Kad/transfer tests and broader relevance/coverage measurements.
 - Obtain independent security/privacy and screen-reader accessibility reviews.
 
-## Native platform work in progress
+## Experimental native packages
 
-Linux x64 and macOS Intel/Apple Silicon resource paths, bundled-engine preparation and native CI are now prepared. Native compile/transfer/package validation is still pending; see PLATFORMS.md. No Linux/macOS binaries have been certified by the Windows-local checks.
+Linux x64 (DEB/AppImage), macOS Apple Silicon and macOS Intel (DMG/app archive) passed native compilation, transfer tests and packaged-runtime checks. See PLATFORMS.md for evidence and limitations. End-user installation and desktop feedback remain pending; publishing these packages as experimental does not require claiming desktop validation.
+
+## Next release priorities
+
+- Make experimental packages and matching source available through a reviewed GitHub Release.
+- Collect reproducible community reports using the issue forms and TESTING.md.
+- Triage reports by platform and fix installation, transfer and file-management failures first.
+- Complete Apple signing/notarization when developer credentials become available.
+- Validate the Windows signed-update channel before enabling automatic application updates.
 
 ## Future scope
 
-Linux/macOS ports, private-source accounts/external Torznab configuration, hard CPU/total-disk limits and automatic executable rollback need additional development and validation. Current resources are Windows x64 only.
+Private-source accounts/external Torznab configuration, hard CPU/total-disk limits, Unix abnormal-exit engine containment and automatic executable rollback need additional development and validation. Linux ARM and Windows ARM are outside the current build matrix.
 
 Separate history navigation, the source-status wall, decorative sidebar text, Cancel Search, More Filters, separate DHT navigation and a separate pasted-link form were deliberately removed for simplicity.

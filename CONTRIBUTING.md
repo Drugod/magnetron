@@ -1,6 +1,6 @@
 # Contributing
 
-Follow README.md and docs/ARCHITECTURE.md. Windows x64 is supported. Keep changes focused and describe the problem, final behaviour and relevant validation in English.
+Follow README.md and docs/ARCHITECTURE.md. Windows x64 is the owner-validated target; Linux x64 and macOS Intel/Apple Silicon packages are experimental. Use the issue forms and docs/TESTING.md for feedback. Keep changes focused and describe the problem, final behaviour and relevant validation in English.
 
 Use synthetic or authorised test payloads. Never commit downloaded content, profiles, history, credentials, signing keys, engines or build output. Redact personal paths, filenames, links and addresses from public diagnostics.
 

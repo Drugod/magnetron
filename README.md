@@ -1,6 +1,6 @@
 # MAGNETRON
 
-A minimalist Windows app to search, download, and share files over BitTorrent and eD2k.
+A minimalist app to search, download, and share files over BitTorrent and eD2k.
 
 **0.8.0 · Windows x64 · GPL-3.0-only**
 
@@ -8,7 +8,7 @@ One field for search queries and pasted links, built-in transfer engines, automa
 
 ## Linux and macOS development
 
-Experimental native ports and a three-target build matrix are being prepared. They are not yet validated releases. See [platform builds](docs/PLATFORMS.md) for status, target requirements and native build instructions. Windows 0.8.0 remains the validated package.
+Linux x64, macOS Apple Silicon and macOS Intel packages have passed native CI compilation, automated transfer tests and packaged-runtime checks. They are experimental and have not been validated on end-user desktops. See [platform builds](docs/PLATFORMS.md) for status, target requirements and native build instructions. Windows 0.8.0 remains the validated package.
 
 ## Download
 
@@ -17,6 +17,10 @@ Get the installer from [Releases](https://github.com/Drugod/magnetron/releases),
 The application executable alone is **not** a complete portable package. Keep `engine/`, `amule/`, `v2/` and `licenses/` beside it. Generated distributions are excluded from source commits.
 
 The current installer is not Authenticode-signed. Windows may show an unknown-publisher warning. Publisher signing and the public application-update channel are not configured yet.
+
+## Feedback on experimental builds
+
+Report installation, search, transfer or background-operation problems using the [bug report form](https://github.com/Drugod/magnetron/issues/new?template=bug_report.yml). Include the application version, OS version, architecture, package format and steps to reproduce. Review screenshots and log excerpts for personal information before posting. See [testing and feedback](docs/TESTING.md).
 
 ## Features
 

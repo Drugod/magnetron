@@ -1,0 +1,58 @@
+name: Bug report
+description: Report a reproducible problem with MAGNETRON.
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Linux and macOS packages are experimental. Please use synthetic or freely distributable test files. Do not post private paths, filenames, links, addresses, credentials, downloaded files or complete logs. For security vulnerabilities, follow SECURITY.md instead.
+  - type: input
+    id: version
+    attributes:
+      label: MAGNETRON version
+      placeholder: "0.8.0, download link or commit"
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - Windows x64
+        - Linux x64
+        - macOS Apple Silicon
+        - macOS Intel
+    validations:
+      required: true
+  - type: input
+    id: system
+    attributes:
+      label: Operating system and package
+      description: Include OS version, Linux distribution/desktop if relevant, and installer, portable folder, DEB, AppImage, DMG or app archive.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Describe the shortest sequence that triggers the problem. For transfers, identify BitTorrent v1/v2/hybrid or eD2k if known.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual result
+      description: Include exact error text after removing personal information.
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Optional redacted screenshot or short log excerpt
+      description: Review attachments carefully. Do not upload full profiles or downloaded content.
