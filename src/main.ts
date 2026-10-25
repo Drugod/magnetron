@@ -953,8 +953,24 @@ setInterval(() => void refreshIndex(), 3000);
 
 $("#settings-form .dialog-actions").insertAdjacentHTML(
   "beforebegin",
-  `<details class="advanced-settings"><summary>Actualizaciones de MAGNETRON</summary><p id="app-update-state" class="muted" role="status">El canal público se activará al publicar la primera versión.</p><div class="dialog-actions"><button type="button" id="check-app-update" class="text-button">Comprobar actualizaciones</button><button type="button" id="install-app-update" class="text-button" hidden>Instalar actualización y cerrar</button></div></details>`,
+  `<details class="advanced-settings"><summary>Actualizaciones de MAGNETRON</summary><p id="app-update-state" class="muted" role="status">Las actualizaciones se comprueban automáticamente en Windows.</p><div class="dialog-actions"><button type="button" id="check-app-update" class="text-button">Comprobar actualizaciones</button><button type="button" id="install-app-update" class="text-button" hidden>Instalar actualización y cerrar</button></div></details>`,
 );
+type AppUpdateStatus = { configured: boolean; ready: boolean; version: string | null };
+function displayAppUpdate(s: AppUpdateStatus) {
+  $("#app-update-state").textContent = !s.configured
+    ? "En este sistema, descarga las nuevas versiones desde GitHub."
+    : s.ready ? "Actualización verificada y preparada" : "Ya tienes la última versión";
+  $("#install-app-update").hidden = !s.ready;
+  $("#update-available").hidden = !s.ready;
+}
+document.body.insertAdjacentHTML("beforeend", `<button id="update-available" class="update-available" hidden>Actualización disponible</button>`);
+$("#update-available").onclick = () => {
+  $("#nav-settings").click();
+  const details = $("#app-update-state").closest("details");
+  if (details) details.open = true;
+  $("#app-update-state").scrollIntoView({ block: "center" });
+};
+if (isTauri()) void listen<AppUpdateStatus>("app-update-ready", e => displayAppUpdate(e.payload));
 $("#check-app-update").onclick = async () => {
   const button = $<HTMLButtonElement>("#check-app-update");
   button.disabled = true;
@@ -965,12 +981,7 @@ $("#check-app-update").onclick = async () => {
       ready: boolean;
       version: string | null;
     }>("check_app_update");
-    $("#app-update-state").textContent = !s.configured
-      ? "El canal público se activará al publicar la primera versión."
-      : s.ready
-        ? "Actualización verificada y preparada"
-        : "Ya tienes la última versión";
-    $("#install-app-update").hidden = !s.ready;
+    displayAppUpdate(s);
   } catch (e) {
     $("#app-update-state").textContent = String(e);
   } finally {

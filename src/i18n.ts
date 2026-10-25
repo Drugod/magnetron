@@ -25,6 +25,9 @@ let appearance: Appearance = ["light", "dark"].includes(
 export const getLanguage = () => language;
 export const locale = () => (language === "en" ? "en-GB" : "es-ES");
 const pairs: Record<string, string> = {
+  "Las actualizaciones se comprueban automáticamente en Windows.": "Updates are checked automatically on Windows.",
+  "En este sistema, descarga las nuevas versiones desde GitHub.": "On this system, download new versions from GitHub.",
+  "Actualización disponible": "Update available",
   "Actualizaciones de MAGNETRON": "MAGNETRON updates",
   "El canal público se activará al publicar la primera versión.":
     "The public update channel will be enabled with the first published release.",

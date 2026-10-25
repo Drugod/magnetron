@@ -14,12 +14,12 @@ Updated October 25, 2026. The owner has functionally validated 0.8.0 on their Wi
 - Persistent favourites, links/CSV/JSON export, ranking improvements and keyboard download actions.
 - Spanish/English, light/dark/system appearance, close-to-tray and Quit.
 - Windows portable/NSIS packaging, pinned preparation scripts and license/source notices.
-- Signed app-update infrastructure; public channel still disabled.
+- Windows 0.8.1 signed update channel implementation, periodic checks and integrated update notice; release/upgrade validation pending.
 
 ## Release work remaining
 
 - Publish reviewed source, a versioned installer, checksums and matching source on GitHub.
-- Configure/safeguard update signing keys and HTTPS channel; test an actual upgrade.
+- Validate and publish the 0.8.1 bootstrap release; existing 0.8.0 clients require one manual installation. Signing key is backed up locally and stored as an encrypted Actions secret.
 - Obtain/configure Authenticode signing if recognised publisher identity is required.
 - Validate installation, upgrade and uninstall on a clean Windows system, including disk/network failures.
 - Run prolonged Kad/transfer tests and broader relevance/coverage measurements.
@@ -35,7 +35,7 @@ Linux x64 (DEB/AppImage), macOS Apple Silicon and macOS Intel (DMG/app archive) 
 - Collect reproducible community reports using the issue forms and TESTING.md.
 - Triage reports by platform and fix installation, transfer and file-management failures first.
 - Complete Apple signing/notarization when developer credentials become available.
-- Validate the Windows signed-update channel before enabling automatic application updates.
+- Validate Windows installer upgrade and signed-channel behaviour before publishing 0.8.1.
 
 ## Future scope
 

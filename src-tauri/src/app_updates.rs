@@ -3,7 +3,8 @@
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
-use tauri::Manager;
+use tauri::{Emitter, Manager};
+static CONTROL: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 #[derive(Deserialize, Serialize)]
 struct Envelope {
     payload: String,
@@ -16,7 +17,7 @@ struct Release {
     sha256: String,
     size: u64,
 }
-#[derive(Serialize)]
+#[derive(Clone, Serialize)]
 pub struct Status {
     configured: bool,
     ready: bool,
@@ -27,11 +28,20 @@ fn channel() -> Option<(&'static str, &'static str)> {
         return None;
     }
     Some((
-        option_env!("MAGNETRON_UPDATE_URL")?,
-        option_env!("MAGNETRON_UPDATE_PUBLIC_KEY")?,
+        "https://github.com/Drugod/magnetron/releases/latest/download/windows-update.json",
+        include_str!("../update-public-key.txt").trim(),
     ))
 }
 fn version(s: &str) -> Result<Vec<u32>, String> {
+    if s.len() > 32
+        || s.split('.').any(|p| {
+            p.is_empty()
+                || !p.bytes().all(|b| b.is_ascii_digit())
+                || (p.len() > 1 && p.starts_with('0'))
+        })
+    {
+        return Err("Versión inválida".into());
+    }
     let parts = s
         .split('.')
         .map(|p| p.parse::<u32>().map_err(|_| "Versión inválida".to_string()))
@@ -63,6 +73,13 @@ fn verify(bytes: &[u8], public: &str) -> Result<Release, String> {
     let release: Release = serde_json::from_str(&envelope.payload).map_err(|e| e.to_string())?;
     version(&release.version)?;
     https(&release.url)?;
+    let expected = format!(
+        "https://github.com/Drugod/magnetron/releases/download/v{0}/MAGNETRON_{0}_x64-setup.exe",
+        release.version
+    );
+    if release.url != expected {
+        return Err("El instalador no pertenece al canal oficial de Windows".into());
+    }
     if release.size == 0
         || release.size > 512 * 1024 * 1024
         || release.sha256.len() != 64
@@ -76,6 +93,11 @@ async fn get(client: &reqwest::Client, url: &str, max: usize) -> Result<Vec<u8>,
     https(url)?;
     let mut response = client
         .get(url)
+        .timeout(std::time::Duration::from_secs(if max <= 65536 {
+            30
+        } else {
+            900
+        }))
         .send()
         .await
         .map_err(|e| e.to_string())?
@@ -102,10 +124,24 @@ fn root(app: &tauri::AppHandle) -> Result<PathBuf, String> {
         .join("app-updates"))
 }
 fn staged(root: &Path, key: &str) -> Result<Release, String> {
+    if std::fs::metadata(root.join("manifest.json"))
+        .map_err(|e| e.to_string())?
+        .len()
+        > 65536
+    {
+        return Err("Manifiesto inválido".into());
+    }
     let bytes = std::fs::read(root.join("manifest.json")).map_err(|e| e.to_string())?;
     let release = verify(&bytes, key)?;
     if version(&release.version)? <= version(env!("CARGO_PKG_VERSION"))? {
         return Err("La versión ya está instalada".into());
+    }
+    if std::fs::metadata(root.join("installer.exe"))
+        .map_err(|e| e.to_string())?
+        .len()
+        != release.size
+    {
+        return Err("El instalador no coincide con la firma".into());
     }
     let installer = std::fs::read(root.join("installer.exe")).map_err(|e| e.to_string())?;
     if installer.len() as u64 != release.size
@@ -117,7 +153,6 @@ fn staged(root: &Path, key: &str) -> Result<Release, String> {
 }
 #[tauri::command]
 pub async fn check_app_update(app: tauri::AppHandle) -> Result<Status, String> {
-    static CONTROL: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
     let _guard = CONTROL.lock().await;
     let Some((url, key)) = channel() else {
         return Ok(Status {
@@ -130,7 +165,8 @@ pub async fn check_app_update(app: tauri::AppHandle) -> Result<Status, String> {
     std::fs::create_dir_all(&root).map_err(|e| e.to_string())?;
     let client = reqwest::Client::builder()
         .https_only(true)
-        .timeout(std::time::Duration::from_secs(120))
+        .connect_timeout(std::time::Duration::from_secs(15))
+        .timeout(std::time::Duration::from_secs(900))
         .build()
         .map_err(|e| e.to_string())?;
     let manifest = get(&client, url, 65536).await?;
@@ -142,7 +178,13 @@ pub async fn check_app_update(app: tauri::AppHandle) -> Result<Status, String> {
             version: None,
         });
     }
-    if !staged(&root, key).is_ok_and(|s| s.version == release.version) {
+    if let Ok(cached) = staged(&root, key) {
+        if version(&cached.version)? > version(&release.version)? {
+            return Err("Se ha rechazado una actualización anterior a la ya preparada".into());
+        }
+    }
+    if !staged(&root, key).is_ok_and(|s| s.version == release.version && s.sha256 == release.sha256)
+    {
         let bytes = get(&client, &release.url, release.size as usize).await?;
         if bytes.len() as u64 != release.size
             || hex::encode(Sha256::digest(&bytes)) != release.sha256.to_lowercase()
@@ -154,14 +196,17 @@ pub async fn check_app_update(app: tauri::AppHandle) -> Result<Status, String> {
             .map_err(|e| e.to_string())?;
         std::fs::write(root.join("manifest.json"), manifest).map_err(|e| e.to_string())?;
     }
-    Ok(Status {
+    let status = Status {
         configured: true,
         ready: true,
         version: Some(release.version),
-    })
+    };
+    let _ = app.emit("app-update-ready", &status);
+    Ok(status)
 }
 #[tauri::command]
-pub fn install_app_update(app: tauri::AppHandle) -> Result<(), String> {
+pub async fn install_app_update(app: tauri::AppHandle) -> Result<(), String> {
+    let _guard = CONTROL.lock().await;
     let (_, key) = channel().ok_or("Canal de publicación pendiente")?;
     let root = root(&app)?;
     staged(&root, key)?;
@@ -182,7 +227,7 @@ mod tests {
         let key = ring::signature::Ed25519KeyPair::from_pkcs8(key.as_ref()).unwrap();
         let payload = serde_json::to_string(&Release {
             version: "0.8.1".into(),
-            url: "https://example.com/setup.exe".into(),
+            url: "https://github.com/Drugod/magnetron/releases/download/v0.8.1/MAGNETRON_0.8.1_x64-setup.exe".into(),
             sha256: "a".repeat(64),
             size: 123,
         })
@@ -198,5 +243,37 @@ mod tests {
         assert!(verify(&serde_json::to_vec(&envelope).unwrap(), &public).is_err());
         assert!(https("http://example.com").is_err());
         assert!(version("0.8.0").unwrap() > version("0.7.0").unwrap());
+    }
+    #[test]
+    fn rejects_wrong_key_origin_truncation_and_staged_tampering() {
+        let rng = ring::rand::SystemRandom::new();
+        let pkcs8 = ring::signature::Ed25519KeyPair::generate_pkcs8(&rng).unwrap();
+        let key = ring::signature::Ed25519KeyPair::from_pkcs8(pkcs8.as_ref()).unwrap();
+        let public = hex::encode(key.public_key().as_ref());
+        let installer = b"synthetic installer fixture";
+        let mut release = Release {
+            version: "999.0.0".into(),
+            url: "https://github.com/Drugod/magnetron/releases/download/v999.0.0/MAGNETRON_999.0.0_x64-setup.exe".into(),
+            sha256: hex::encode(Sha256::digest(installer)), size: installer.len() as u64,
+        };
+        let sign = |r: &Release| {
+            let payload = serde_json::to_string(r).unwrap();
+            let signature = hex::encode(key.sign(payload.as_bytes()).as_ref());
+            serde_json::to_vec(&Envelope { payload, signature }).unwrap()
+        };
+        let manifest = sign(&release);
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("manifest.json"), &manifest).unwrap();
+        std::fs::write(dir.path().join("installer.exe"), installer).unwrap();
+        assert!(staged(dir.path(), &public).is_ok());
+        std::fs::write(dir.path().join("installer.exe"), b"tampered").unwrap();
+        assert!(staged(dir.path(), &public).is_err());
+        assert!(verify(&manifest, &"00".repeat(32)).is_err());
+        assert!(verify(&manifest[..manifest.len() / 2], &public).is_err());
+        release.url = "https://example.com/installer.exe".into();
+        assert!(verify(&sign(&release), &public).is_err());
+        for invalid in ["0.8", "0.8.1.2", "0.08.1", "0.8.-1", "0.8.+1"] {
+            assert!(version(invalid).is_err());
+        }
     }
 }
