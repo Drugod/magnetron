@@ -23,7 +23,25 @@ pub fn atomic_private(path: &Path, bytes: &[u8]) -> Result<(), String> {
     let mut file = tempfile::NamedTempFile::new_in(parent).map_err(|e| e.to_string())?;
     file.write_all(bytes).map_err(|e| e.to_string())?;
     file.as_file().sync_all().map_err(|e| e.to_string())?;
-    file.persist(path).map_err(|e| e.to_string())?;
+    // Windows can briefly deny replacement while a reader or antivirus holds
+    // the destination. Retry the same atomic rename; never delete the old file.
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(1);
+    loop {
+        match file.persist(path) {
+            Ok(_) => break,
+            Err(error) => {
+                #[cfg(windows)]
+                let transient = matches!(error.error.raw_os_error(), Some(5 | 32 | 33));
+                #[cfg(not(windows))]
+                let transient = false;
+                if !transient || std::time::Instant::now() >= deadline {
+                    return Err(error.to_string());
+                }
+                file = error.file;
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
+        }
+    }
     #[cfg(unix)]
     std::fs::File::open(parent)
         .and_then(|f| f.sync_all())

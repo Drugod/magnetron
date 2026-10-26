@@ -1,3 +1,4 @@
+// MAGNETRON modification (2026-10-27): backport RUSTSEC-2024-0429 pointer mutability fix.
 // Take a look at the license at the top of the repository in the LICENSE file.
 
 // This is similar to the GVariantIter provided by glib, but that would
