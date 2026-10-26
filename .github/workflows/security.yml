@@ -27,7 +27,11 @@ jobs:
         with:
           key: security-auditor
       - run: cargo install cargo-audit --locked --version 0.22.2
-      - run: cargo audit --file src-tauri/Cargo.lock --deny warnings
+      - run: python3 scripts/check-vendor-patches.py
+      # GTK3 requires glib 0.18. The exact upstream fix is vendored and hash-checked
+      # above; its optimized runtime regression also gates native Linux CI.
+      # Maintenance notices remain visible; known vulnerabilities/unsoundness fail.
+      - run: cargo audit --file src-tauri/Cargo.lock --deny unsound --ignore RUSTSEC-2024-0429
       - name: Check source signing-key boundary
         run: |
           if git grep -Il -E 'BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY' -- ':!scripts/*' ':!docs/*'; then

@@ -11,7 +11,7 @@ pub(crate) struct Job {
 }
 impl Job {
     pub(crate) fn attach(child: &Child, runtime: &Path) -> Result<Self, String> {
-        let mut watcher = Command::new(crate::platform::python(runtime))
+        let watcher = Command::new(crate::platform::python(runtime))
             .arg("-I")
             .arg(runtime.join("engine_guard.py"))
             .arg(child.id().to_string())
@@ -19,8 +19,14 @@ impl Job {
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
             .process_group(0)
-            .spawn()
-            .map_err(|e| format!("Engine guard could not start: {e}"))?;
+            .spawn();
+        let mut watcher = match watcher {
+            Ok(watcher) => watcher,
+            Err(e) => {
+                terminate_owned_group(child.id());
+                return Err(format!("Engine guard could not start: {e}"));
+            }
+        };
         let mut output = watcher
             .stdout
             .take()
@@ -32,11 +38,20 @@ impl Job {
             let _ = tx.send(ok);
         });
         if rx.recv_timeout(Duration::from_secs(5)) != Ok(true) {
+            terminate_owned_group(child.id());
             let _ = watcher.kill();
             let _ = watcher.wait();
             return Err("Engine guard handshake failed".into());
         }
         Ok(Self { watcher })
+    }
+}
+// Only called for engine process IDs created in a new group by this application.
+fn terminate_owned_group(pid: u32) {
+    if pid > 1 && pid <= i32::MAX as u32 {
+        unsafe {
+            libc::kill(-(pid as libc::pid_t), libc::SIGKILL);
+        }
     }
 }
 impl Drop for Job {

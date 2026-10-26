@@ -84,4 +84,18 @@ mod tests {
             0o700
         );
     }
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn patched_variant_string_iteration_survives_optimization() {
+        use glib::variant::ToVariant;
+        let variant = vec!["first", "middle", "last"].to_variant();
+        assert_eq!(
+            variant.array_iter_str().unwrap().collect::<Vec<_>>(),
+            vec!["first", "middle", "last"]
+        );
+        assert_eq!(variant.array_iter_str().unwrap().last(), Some("last"));
+        let mut values = variant.array_iter_str().unwrap();
+        assert_eq!(values.next_back(), Some("last"));
+        assert_eq!(values.nth(1), Some("middle"));
+    }
 }

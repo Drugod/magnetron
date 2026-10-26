@@ -54,6 +54,7 @@ jobs:
         run: python scripts/prepare-native.py
       - run: python scripts/test-native-preparation.py
       - run: python scripts/test-engine-guard.py
+      - run: python scripts/check-vendor-patches.py
       - run: npm test
       - run: npm run build
       # Hosted Intel runners can have an unresolvable local hostname. aMuled
@@ -79,6 +80,9 @@ jobs:
             export LD_LIBRARY_PATH="$PWD/vendor/native/v2/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
           fi
           npm run tauri -- build --verbose
+      - name: Test optimized GLib security regression
+        if: runner.os == 'Linux'
+        run: xvfb-run -a cargo test --locked --release --manifest-path src-tauri/Cargo.toml patched_variant_string_iteration_survives_optimization
       - name: Test relocated package runtime
         run: python scripts/test-native-package.py
       - name: Package macOS application archive

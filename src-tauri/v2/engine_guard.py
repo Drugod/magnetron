@@ -8,18 +8,19 @@ import time
 def terminate_group(group):
     try:
         os.killpg(group, signal.SIGTERM)
-    except ProcessLookupError:
+    except (ProcessLookupError, PermissionError):
         return
+    # BSD can return EPERM for a group containing only non-signalable zombies.
     deadline = time.monotonic() + 2
     while time.monotonic() < deadline:
         try:
             os.killpg(group, 0)
-        except ProcessLookupError:
+        except (ProcessLookupError, PermissionError):
             return
         time.sleep(0.05)
     try:
         os.killpg(group, signal.SIGKILL)
-    except ProcessLookupError:
+    except (ProcessLookupError, PermissionError):
         pass
 
 
@@ -32,7 +33,7 @@ def main():
     try:
         if os.getpgid(group) != group:
             return 2
-    except ProcessLookupError:
+    except (ProcessLookupError, PermissionError):
         # An engine may exit immediately, before the handshake completes.
         pass
     sys.stdout.buffer.write(b'R')

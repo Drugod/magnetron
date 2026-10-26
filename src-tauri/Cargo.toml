@@ -39,7 +39,7 @@ anyhow = "1"
 tauri-plugin-deep-link = "2"
 tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
 tar = "0.4"
-zip = { version = "6", default-features = false, features = ["deflate"] }
+zip = { version = "9.1.2", default-features = false, features = ["deflate"] }
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = ["Win32_System_JobObjects", "Win32_System_Threading", "Win32_Foundation", "Win32_Security"] }
@@ -47,8 +47,16 @@ windows-sys = { version = "0.61", features = ["Win32_System_JobObjects", "Win32_
 # tauri-plugin-deep-link 2.6.2 constructs the two-field ParseOption API.
 [target.'cfg(target_os = "linux")'.dependencies]
 rust-ini = "=0.21.1"
+glib = "=0.18.5"
 
 [profile.release]
 lto = true
 codegen-units = 1
 strip = true
+
+[patch.crates-io]
+librqbit-utp = { path = "../third_party/librqbit-utp" }
+glib = { path = "../third_party/glib" }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"

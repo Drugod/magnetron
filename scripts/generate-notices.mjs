@@ -7,7 +7,7 @@ const reachable = new Set(metadata.resolve.nodes.map(n => n.id));
 const texts = new Map();
 const version = JSON.parse(fs.readFileSync("package.json", "utf8")).version;
 let output = `MAGNETRON ${version} — Rust dependency notices\n\n`;
-for (const pkg of metadata.packages.filter(p => p.source && reachable.has(p.id)).sort((a,b) => `${a.name} ${a.version}`.localeCompare(`${b.name} ${b.version}`))) {
+for (const pkg of metadata.packages.filter(p => (p.source || path.relative(process.cwd(), p.manifest_path).replaceAll("\\", "/").startsWith("third_party/")) && reachable.has(p.id)).sort((a,b) => `${a.name} ${a.version}`.localeCompare(`${b.name} ${b.version}`))) {
   output += `${pkg.name} ${pkg.version}\nLicense: ${pkg.license ?? "See included license"}\nSource: ${pkg.repository ?? `https://crates.io/crates/${pkg.name}/${pkg.version}`}\n`;
   const dir = path.dirname(pkg.manifest_path);
   const files = fs.readdirSync(dir).filter(n => /^(license|copying|notice|copyright)([.\-_]|$)/i.test(n));

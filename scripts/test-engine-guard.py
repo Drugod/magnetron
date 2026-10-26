@@ -22,7 +22,7 @@ def wait_stopped(pid):
 
 def cleanup(group):
     try: os.killpg(group,signal.SIGKILL)
-    except ProcessLookupError: pass
+    except (ProcessLookupError, PermissionError): pass
 
 @unittest.skipUnless(os.name=='posix','POSIX process groups only')
 class GuardTests(unittest.TestCase):
