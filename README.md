@@ -2,17 +2,17 @@
 
 A minimalist app to search, download, and share files over BitTorrent and eD2k.
 
-**0.8.0 · Windows x64 · GPL-3.0-only**
+**Windows x64 · experimental Linux/macOS · GPL-3.0-only**
 
 One field for search queries and pasted links, built-in transfer engines, automatic public-source management and a local metadata index. The packaged app does not require separate Jackett, aMule, Python or Docker installations.
 
 ## Linux and macOS development
 
-Linux x64, macOS Apple Silicon and macOS Intel packages have passed native CI compilation, automated transfer tests and packaged-runtime checks. They are experimental and have not been validated on end-user desktops. See [platform builds](docs/PLATFORMS.md) for status, target requirements and native build instructions. Windows 0.8.0 remains the validated package.
+Linux x64, macOS Apple Silicon and macOS Intel packages have passed native CI compilation, automated transfer tests and packaged-runtime checks. They are experimental and have not been validated on end-user desktops. See [platform builds](docs/PLATFORMS.md) for status, target requirements and native build instructions. Windows 0.8.0 was functionally validated by the project owner; 0.8.1 also passes automated installer-upgrade checks.
 
 ## Download
 
-Get the packages from [Releases](https://github.com/Drugod/magnetron/releases/tag/v0.8.0). Linux and macOS packages are experimental. Choose `MAGNETRON_0.8.0_x64-setup.exe`: it includes the required engines and libraries.
+Get the packages from [Releases](https://github.com/Drugod/magnetron/releases/latest). Linux and macOS packages are experimental. On Windows, choose the file ending in `_x64-setup.exe`: it includes the required engines and libraries.
 
 The application executable alone is **not** a complete portable package. Keep `engine/`, `amule/`, `v2/` and `licenses/` beside it. Generated distributions are excluded from source commits.
 
@@ -22,6 +22,12 @@ The current installer is not Authenticode-signed. Windows may show an unknown-pu
 
 Report installation, search, transfer or background-operation problems using the [bug report form](https://github.com/Drugod/magnetron/issues/new?template=bug_report.yml). Include the application version, OS version, architecture, package format and steps to reproduce. Review screenshots and log excerpts for personal information before posting. See [testing and feedback](docs/TESTING.md).
 
+## Application updates
+
+Windows x64 builds starting with 0.8.1 check the signed update channel after startup and every six hours while running. A newer installer downloads in the background, is verified, and appears as **Update available**. Installation requires a click and stops transfers first. GitHub receives update/download requests, including the connection's network address.
+
+**Already using 0.8.0? Install 0.8.1 manually once.** The distributed 0.8.0 executable has no configured channel and cannot activate it remotely. Linux/macOS application updates remain manual. Manifest signing does not provide an Authenticode publisher certificate.
+
 ## Features
 
 - Unified search and magnet/eD2k input; paste up to 100 links, one per line.
@@ -30,19 +36,19 @@ Report installation, search, transfer or background-operation problems using the
 - Optional sharing of selected folders, independently for BitTorrent and eD2k.
 - Automatic public Jackett sources, failure backoff and official engine update staging with checksum validation and fallback.
 - Local SQLite index, optional DHT metadata discovery, index budgets and discovery scheduling.
-- Persistent favourites and links/CSV/JSON export.
+- Links/CSV/JSON export.
 - Spanish/English, light/dark/system appearance and background downloads in the tray.
 - Experimental Kad search, separate from BitTorrent DHT.
 
 ## Quick start
 
-1. Choose language, appearance and a download directory in **Settings**. With no saved destination, the first download asks for one.
+1. Choose language and appearance using the controls at the top right. Choose a download directory in **Settings**; with no saved destination, the first download asks for one.
 2. In **Explore**, enter a query or paste links and press Enter. Another search replaces the current query.
 3. Filter results by content type and choose **Download**.
 4. In **Downloads**, right-click a row or choose **…** to open its folder, remove the entry while keeping files, or confirm deletion of its payload.
 5. Closing the window hides it in the tray and keeps downloads running. **Quit** stops engines; unfinished transfers return paused on the next launch.
 
-Clearing a search keeps the index. Clearing the cache keeps downloads and favourites. Existing files are not silently overwritten; deletion preserves the destination and unrelated files.
+Clearing a search keeps the index. Clearing the cache keeps downloads. Existing files are not silently overwritten; deletion preserves the destination and unrelated files.
 
 ## Availability and coverage
 

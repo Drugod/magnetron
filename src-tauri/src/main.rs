@@ -695,7 +695,11 @@ fn main() {
             if app_updates::configured() {
                 let handle = app.handle().clone();
                 tauri::async_runtime::spawn(async move {
-                    let _ = app_updates::check_app_update(handle).await;
+                    tokio::time::sleep(std::time::Duration::from_secs(15)).await;
+                    loop {
+                        let _ = app_updates::check_app_update(handle.clone()).await;
+                        tokio::time::sleep(std::time::Duration::from_secs(6 * 60 * 60)).await;
+                    }
                 });
             }
             let handle = app.handle().clone();

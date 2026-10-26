@@ -1,0 +1,98 @@
+name: Signed Windows update release
+on:
+  push:
+    branches: [codex/automatic-updates]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing reviewed version tag (for example v0.8.1)
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: signed-windows-release
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          persist-credentials: false
+      - name: Validate tag and trusted channel
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          if (-not $env:RELEASE_TAG) { $env:RELEASE_TAG = 'v' + (Get-Content package.json -Raw | ConvertFrom-Json).version }
+          if ($env:RELEASE_TAG -notmatch '^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$') { throw 'Invalid version tag' }
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          if ($env:RELEASE_TAG -ne "v$version") { throw 'Tag/version mismatch' }
+          if ((Get-Content src-tauri/update-public-key.txt -Raw).Trim() -notmatch '^[a-f0-9]{64}$') { throw 'Missing trusted public key' }
+          "RELEASE_VERSION=$version" >> $env:GITHUB_ENV
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          cache-on-failure: "true"
+      - run: npm ci
+      - run: node --test scripts/test-sign-update.mjs
+      - run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-engine.ps1
+      - run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-ed2k.ps1
+      - run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-v2.ps1
+      - run: ./vendor/v2-runtime/python.exe -I scripts/test-native-preparation.py
+      - run: ./vendor/v2-runtime/python.exe -I scripts/test-v2.py
+      - run: npm test
+      - run: npm run test:rust
+      - run: npm run bundle
+      - name: Validate upgrade from the published 0.8.0 installer
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./scripts/test-windows-upgrade.ps1 -Installer "src-tauri/target/release/bundle/nsis/MAGNETRON_$($env:RELEASE_VERSION)_x64-setup.exe" -Version $env:RELEASE_VERSION
+      - name: Sign exact installer bytes and prepare checksums
+        shell: pwsh
+        env:
+          MAGNETRON_UPDATE_PRIVATE_KEY: ${{ secrets.MAGNETRON_UPDATE_PRIVATE_KEY }}
+        run: |
+          $version = $env:RELEASE_VERSION
+          $installer = "src-tauri/target/release/bundle/nsis/MAGNETRON_${version}_x64-setup.exe"
+          New-Item -ItemType Directory -Force artifacts/signed-update | Out-Null
+          Copy-Item -LiteralPath $installer -Destination artifacts/signed-update/
+          node scripts/sign-update.mjs sign-env $installer $version "https://github.com/Drugod/magnetron/releases/download/v$version/MAGNETRON_${version}_x64-setup.exe" artifacts/signed-update/windows-update.json
+          if ($LASTEXITCODE -ne 0) { throw 'Manifest signing failed' }
+          git archive --format=zip --prefix="MAGNETRON-$version/" --output="artifacts/signed-update/MAGNETRON-$version-source.zip" HEAD
+          $lines = Get-ChildItem artifacts/signed-update -File | Sort-Object Name | ForEach-Object { (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLower() + ' *' + $_.Name }
+          $lines | Set-Content -Encoding ascii artifacts/signed-update/SHA256SUMS.txt
+      - name: Validate the real signed installer through the client verifier
+        shell: pwsh
+        run: |
+          $env:MAGNETRON_UPDATE_TEST_DIR = (Resolve-Path artifacts/signed-update).Path
+          cargo test --locked --manifest-path src-tauri/Cargo.toml validates_real_signed_release_before_installation -- --ignored
+          if ($LASTEXITCODE -ne 0) { throw 'Real signed installer validation failed' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MAGNETRON-signed-Windows-update
+          path: artifacts/signed-update/*
+          if-no-files-found: error
+      - name: Create reviewed release draft
+        if: github.event_name == 'workflow_dispatch'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          $assets = Get-ChildItem artifacts/signed-update -File | ForEach-Object { $_.FullName }
+          $notes = "docs/RELEASE-NOTES-$($env:RELEASE_VERSION).md"
+          if (-not (Test-Path -LiteralPath $notes)) { throw 'Missing version-specific release notes' }
+          gh release create $env:RELEASE_TAG @assets --verify-tag --draft --title "MAGNETRON $env:RELEASE_VERSION" --notes-file $notes
+          if ($LASTEXITCODE -ne 0) { throw 'Draft creation failed; existing releases are never overwritten automatically' }

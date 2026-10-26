@@ -39,9 +39,31 @@ it("keeps one search/link field, places sources first in settings and switches l
   expect(document.querySelector("#settings-form")!.textContent).toContain(
     "Download folder",
   );
-  expect(document.querySelector("#settings-form")!.textContent).toContain(
-    "Language",
-  );
+  expect(document.querySelector("#nav-favorites")).toBeNull();
+  expect(document.querySelector(".favorite-button")).toBeNull();
+  expect(document.querySelector("#settings-form #language-select")).toBeNull();
+  expect(
+    document.querySelector("#settings-form #appearance-select"),
+  ).toBeNull();
+  expect(
+    document.querySelector(".window-controls #language-select"),
+  ).not.toBeNull();
+  expect(
+    document.querySelector(".window-controls #appearance-select"),
+  ).not.toBeNull();
+  const appearanceControl =
+    document.querySelector<HTMLSelectElement>("#appearance-select")!;
+  appearanceControl.value = "dark";
+  appearanceControl.dispatchEvent(new Event("change"));
+  expect(document.documentElement.dataset.theme).toBe("dark");
+  const languageControl =
+    document.querySelector<HTMLSelectElement>("#language-select")!;
+  languageControl.value = "es";
+  languageControl.dispatchEvent(new Event("change"));
+  expect(document.documentElement.lang).toBe("es");
+  languageControl.value = "en";
+  languageControl.dispatchEvent(new Event("change"));
+  await Promise.resolve();
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
   const untranslated: string[] = [];
   while (walker.nextNode()) {

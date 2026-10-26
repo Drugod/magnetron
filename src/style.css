@@ -1045,17 +1045,6 @@ input[type="number"] {
   gap: 8px;
   align-items: center;
 }
-.favorite-button {
-  background: transparent;
-  border: 0;
-  color: var(--muted);
-  font-size: 22px;
-  cursor: pointer;
-  padding: 8px;
-}
-.favorite-button[aria-pressed="true"] {
-  color: var(--accent);
-}
 :focus-visible {
   outline: 3px solid var(--accent);
   outline-offset: 3px;
@@ -1068,4 +1057,39 @@ input[type="number"] {
     transition: none !important;
     scroll-behavior: auto !important;
   }
+}
+
+.update-available {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 20;
+  padding: 12px 18px;
+  border-radius: 14px;
+  box-shadow: 0 4px 24px #0002;
+}
+.update-available[hidden] {
+  display: none;
+}
+
+.window-controls {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 24px 0;
+}
+.window-controls select {
+  width: auto;
+  min-height: 34px;
+  padding: 6px 30px 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background-color: var(--surface);
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+}
+.workspace > main {
+  padding-top: 24px;
 }

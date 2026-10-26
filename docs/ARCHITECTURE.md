@@ -30,4 +30,4 @@ exports.rs bounds links/JSON/CSV output and protects CSV formulas/quotes. Favour
 
 Windows Job Objects bind child engines to the application. Management APIs are authenticated loopback; P2P endpoints remain network-facing. No firewall rules or source access controls are changed.
 
-app_updates.rs verifies Ed25519 manifests, HTTPS installers, size/hash and versions. The endpoint/key are fixed at build time; the current public channel is unconfigured. Installation stops engines first. Automatic executable rollback is not implemented.
+app_updates.rs verifies Ed25519 manifests, HTTPS installers, size/hash and versions. The endpoint/key are fixed at build time; Windows 0.8.1 embeds the official HTTPS channel and public key. Startup and six-hour checks stage signed installers; installation remains explicit. Published 0.8.0 clients need one manual upgrade. Linux/macOS updates remain manual. Installation stops engines first. Automatic executable rollback is not implemented.

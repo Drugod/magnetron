@@ -11,15 +11,15 @@ Updated October 25, 2026. The owner has functionally validated 0.8.0 on their Wi
 - Local index, optional DHT metadata discovery, record/text budgets, recovery timing and local-hour scheduling.
 - Experimental Kad bootstrap/search: one public test connected and completed with zero complete-source results.
 - Explicit per-network arbitrary-folder sharing, read-only folder torrent storage and copyable magnets.
-- Persistent favourites, links/CSV/JSON export, ranking improvements and keyboard download actions.
-- Spanish/English, light/dark/system appearance, close-to-tray and Quit.
+- Links/CSV/JSON export, ranking improvements and keyboard download actions. Favourites navigation and actions were removed for simplicity in 0.8.1.
+- Spanish/English and light/dark/system appearance controls at the top right, close-to-tray and Quit.
 - Windows portable/NSIS packaging, pinned preparation scripts and license/source notices.
-- Signed app-update infrastructure; public channel still disabled.
+- Windows 0.8.1 signed update channel, periodic checks and integrated update notice; installer upgrade and real signed-installer validation passed in CI.
 
 ## Release work remaining
 
 - Publish reviewed source, a versioned installer, checksums and matching source on GitHub.
-- Configure/safeguard update signing keys and HTTPS channel; test an actual upgrade.
+- Validate and publish the 0.8.1 bootstrap release; existing 0.8.0 clients require one manual installation. Signing key is backed up locally and stored as an encrypted Actions secret.
 - Obtain/configure Authenticode signing if recognised publisher identity is required.
 - Validate installation, upgrade and uninstall on a clean Windows system, including disk/network failures.
 - Run prolonged Kad/transfer tests and broader relevance/coverage measurements.
@@ -35,7 +35,7 @@ Linux x64 (DEB/AppImage), macOS Apple Silicon and macOS Intel (DMG/app archive) 
 - Collect reproducible community reports using the issue forms and TESTING.md.
 - Triage reports by platform and fix installation, transfer and file-management failures first.
 - Complete Apple signing/notarization when developer credentials become available.
-- Validate the Windows signed-update channel before enabling automatic application updates.
+- Publish the reviewed 0.8.1 bootstrap release. CI verified upgrade from 0.8.0, preservation of an application-data marker, acceptance of the real signed installer, same-version rejection and one-byte tamper rejection. A graphical end-to-end update on an end-user desktop remains pending.
 
 ## Future scope
 
