@@ -2,16 +2,14 @@
 use crate::{
     downloads::Download,
     ec::{Client, Tag},
-    engine::Job,
+    engine::OwnedProcess,
 };
 use md5::{Digest, Md5};
 use serde::{Deserialize, Serialize};
-#[cfg(unix)]
-use std::os::unix::process::CommandExt;
 use std::{
     collections::BTreeMap,
     path::{Path, PathBuf},
-    process::{Child, Command, Stdio},
+    process::{Command, Stdio},
     sync::{Arc, Mutex},
     time::Duration,
 };
@@ -23,8 +21,7 @@ struct Store {
     records: BTreeMap<String, Download>,
 }
 struct Running {
-    child: Child,
-    _job: Job,
+    child: OwnedProcess,
     client: Client,
 }
 impl Running {
@@ -431,18 +428,7 @@ impl Downloads {
             use std::os::windows::process::CommandExt;
             command.creation_flags(0x08000000);
         }
-        #[cfg(unix)]
-        command.process_group(0);
-        let mut child = command
-            .spawn()
-            .map_err(|e| format!("No se pudo iniciar eD2k: {e}"))?;
-        let job = match Job::attach(&child, &self.runtime) {
-            Ok(j) => j,
-            Err(e) => {
-                let _ = child.kill();
-                return Err(e);
-            }
-        };
+        let mut child = OwnedProcess::spawn(&mut command, &self.runtime)?;
         let mut connection = None;
         let mut last_error = String::new();
         for _ in 0..80 {
@@ -524,11 +510,7 @@ impl Downloads {
         if reply.iter().any(|t| t.id == 0x2002) {
             return Err("aMule ha rechazado una carpeta compartida".into());
         }
-        *running = Some(Running {
-            child,
-            _job: job,
-            client,
-        });
+        *running = Some(Running { child, client });
         Ok(())
     }
     fn watch(self: &Arc<Self>) {
@@ -684,6 +666,19 @@ impl Downloads {
         {
             let mut running = self.running.lock().await;
             let c = &mut running.as_mut().unwrap().client;
+            if action == "resume" {
+                let (_, queue) = c.request(0x0d, vec![]).await?;
+                let present = queue
+                    .iter()
+                    .filter(|row| row.id == 0x300)
+                    .any(|row| row.get(0x31e).is_some_and(|h| hex::encode(&h.data) == hash));
+                if !present {
+                    // A crash can precede aMule's own .part.met checkpoint.
+                    // Recreate only the explicitly resumed, previously validated link.
+                    let safe = crate::ed2k::validate_link(&old.uri)?;
+                    c.request(9, vec![Tag::string(0, &safe)]).await?;
+                }
+            }
             c.request(
                 match action {
                     "pause" => 0x19,
@@ -1306,6 +1301,7 @@ mod tests {
             "waiting" | "downloading"
         ));
         let previous = {
+            let _operation = engine.control.lock().await;
             let mut slot = engine.running.lock().await;
             let running = slot.as_mut().unwrap();
             let pid = running.child.id();
@@ -1313,12 +1309,14 @@ mod tests {
             running.child.wait().unwrap();
             pid
         };
-        engine.start().await.unwrap();
-        assert_ne!(
-            engine.running.lock().await.as_ref().unwrap().child.id(),
-            previous
-        );
         engine.action(&id, "resume").await.unwrap();
+        {
+            let _operation = engine.control.lock().await;
+            assert_ne!(
+                engine.running.lock().await.as_ref().unwrap().child.id(),
+                previous
+            );
+        }
         engine.update().await.unwrap();
         engine.shutdown().await;
         drop(engine);

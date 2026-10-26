@@ -1,13 +1,11 @@
 //! Pure BEP 52 transfers through an isolated, bundled libtorrent worker over stdio.
 use crate::downloads::Download;
 use serde::{Deserialize, Serialize};
-#[cfg(unix)]
-use std::os::unix::process::CommandExt;
 use std::{
     collections::BTreeMap,
     io::{BufRead, Write},
     path::PathBuf,
-    process::{Child, ChildStdin, Command, Stdio},
+    process::{ChildStdin, Command, Stdio},
     sync::{Arc, Mutex},
     time::Duration,
 };
@@ -17,11 +15,10 @@ struct Entry {
     files: Vec<PathBuf>,
 }
 struct Running {
-    child: Child,
+    child: crate::engine::OwnedProcess,
     input: ChildStdin,
     token: u64,
     last_limits: (u32, u32),
-    _job: crate::engine::Job,
 }
 pub struct Downloads {
     runtime: PathBuf,
@@ -236,19 +233,7 @@ impl Downloads {
             use std::os::windows::process::CommandExt;
             cmd.creation_flags(0x08000000);
         }
-        #[cfg(unix)]
-        cmd.process_group(0);
-        let mut child = cmd
-            .spawn()
-            .map_err(|e| format!("No se pudo iniciar BitTorrent v2: {e}"))?;
-        let job = match crate::engine::Job::attach(&child, &self.runtime) {
-            Ok(job) => job,
-            Err(e) => {
-                let _ = child.kill();
-                let _ = child.wait();
-                return Err(e);
-            }
-        };
+        let mut child = crate::engine::OwnedProcess::spawn(&mut cmd, &self.runtime)?;
         let mut input = child.stdin.take().unwrap();
         let output = child.stdout.take().unwrap();
         let (down, up) = *self.limits.lock().unwrap();
@@ -262,7 +247,6 @@ impl Downloads {
                 input,
                 token,
                 last_limits: (down, up),
-                _job: job,
             },
         );
         let weak = Arc::downgrade(self);
@@ -459,17 +443,7 @@ pub fn verify(
         use std::os::windows::process::CommandExt;
         cmd.creation_flags(0x08000000);
     }
-    #[cfg(unix)]
-    cmd.process_group(0);
-    let mut child = cmd.spawn().map_err(|e| e.to_string())?;
-    let _job = match crate::engine::Job::attach(&child, runtime) {
-        Ok(job) => job,
-        Err(e) => {
-            let _ = child.kill();
-            let _ = child.wait();
-            return Err(e);
-        }
-    };
+    let mut child = crate::engine::OwnedProcess::spawn(&mut cmd, runtime)?;
     let request = serde_json::json!({"uri":uri,"folder":temp.path(),"staging":temp.path(),"verify":true,"down":32,"up":16});
     let mut input = child.stdin.take().unwrap();
     if let Err(e) = writeln!(input, "{request}") {
@@ -523,9 +497,7 @@ mod tests {
         let seed_dir = tmp.path().join("seed");
         std::fs::create_dir(&seed_dir).unwrap();
         let mut seed_command = Command::new(crate::platform::python(&runtime));
-        #[cfg(unix)]
-        seed_command.process_group(0);
-        let mut child = seed_command
+        seed_command
             .arg("-I")
             .arg("-u")
             .arg(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../scripts/test-v2.py"))
@@ -533,10 +505,8 @@ mod tests {
             .arg(&seed_dir)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .spawn()
-            .unwrap();
-        let _job = crate::engine::Job::attach(&child, &runtime).unwrap();
+            .stderr(Stdio::null());
+        let mut child = crate::engine::OwnedProcess::spawn(&mut seed_command, &runtime).unwrap();
         let mut output = std::io::BufReader::new(child.stdout.take().unwrap());
         let mut uri = String::new();
         output.read_line(&mut uri).unwrap();

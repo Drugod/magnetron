@@ -124,7 +124,7 @@ mod tests {
             loop {
                 let (mut downstream, _) = proxy.accept().await.unwrap();
                 let mut online = online.clone();
-                if !*online.borrow() {
+                if !*online.borrow_and_update() {
                     continue;
                 }
                 tokio::spawn(async move {

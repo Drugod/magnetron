@@ -33,8 +33,7 @@ pub struct Engine {
     runtime: PathBuf,
     data: PathBuf,
     started: AsyncMutex<Option<Arc<Connection>>>,
-    child: Mutex<Option<Child>>,
-    job: Mutex<Option<Job>>,
+    child: Mutex<Option<OwnedProcess>>,
     configured: tokio::sync::RwLock<std::collections::HashSet<String>>,
     health: Mutex<std::collections::BTreeMap<String, Health>>,
 }
@@ -95,6 +94,56 @@ impl Drop for Job {
 }
 #[cfg(unix)]
 pub(crate) use crate::process_guard::Job;
+/// Owns both the process and its descendant-lifetime guard on all exit paths.
+pub(crate) struct OwnedProcess {
+    child: Option<Child>,
+    job: Option<Job>,
+}
+impl OwnedProcess {
+    pub(crate) fn spawn(command: &mut Command, runtime: &std::path::Path) -> Result<Self, String> {
+        #[cfg(unix)]
+        command.process_group(0);
+        let mut child = command
+            .spawn()
+            .map_err(|e| format!("Engine could not start: {e}"))?;
+        match Job::attach(&child, runtime) {
+            Ok(job) => Ok(Self {
+                child: Some(child),
+                job: Some(job),
+            }),
+            Err(e) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                Err(e)
+            }
+        }
+    }
+}
+impl OwnedProcess {
+    pub(crate) fn wait_with_output(mut self) -> std::io::Result<std::process::Output> {
+        self.child.take().unwrap().wait_with_output()
+    }
+}
+impl std::ops::Deref for OwnedProcess {
+    type Target = Child;
+    fn deref(&self) -> &Child {
+        self.child.as_ref().unwrap()
+    }
+}
+impl std::ops::DerefMut for OwnedProcess {
+    fn deref_mut(&mut self) -> &mut Child {
+        self.child.as_mut().unwrap()
+    }
+}
+impl Drop for OwnedProcess {
+    fn drop(&mut self) {
+        if let Some(mut child) = self.child.take() {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+        self.job.take();
+    }
+}
 impl Engine {
     pub fn new(executable: PathBuf, data: PathBuf) -> Arc<Self> {
         Self::new_with_runtime(executable, data, crate::platform::dev_runtime())
@@ -110,7 +159,6 @@ impl Engine {
             data,
             started: AsyncMutex::new(None),
             child: Mutex::new(None),
-            job: Mutex::new(None),
             configured: tokio::sync::RwLock::new(std::collections::HashSet::new()),
             health: Mutex::new(health),
         })
@@ -150,9 +198,6 @@ impl Engine {
                 let _ = child.wait();
             }
         }
-        if let Ok(mut slot) = self.job.lock() {
-            slot.take();
-        }
     }
     pub async fn shutdown(&self) {
         let mut connection = self.started.lock().await;
@@ -170,7 +215,6 @@ impl Engine {
                         let _ = child.kill();
                         let _ = child.wait();
                     }
-                    self.job.lock().unwrap().take();
                     crate::engine_updates::reject(&self.data);
                 }
             }
@@ -219,20 +263,7 @@ impl Engine {
             use std::os::windows::process::CommandExt;
             command.creation_flags(0x08000000);
         }
-        #[cfg(unix)]
-        command.process_group(0);
-        let mut child = command
-            .spawn()
-            .map_err(|e| format!("No se pudo arrancar el motor: {e}"))?;
-        {
-            match Job::attach(&child, &self.runtime) {
-                Ok(job) => *self.job.lock().map_err(|e| e.to_string())? = Some(job),
-                Err(e) => {
-                    let _ = child.kill();
-                    return Err(e);
-                }
-            }
-        }
+        let child = OwnedProcess::spawn(&mut command, &self.runtime)?;
         *self.child.lock().map_err(|e| e.to_string())? = Some(child);
         let base = format!("http://127.0.0.1:{port}");
         let client = reqwest::Client::builder()
