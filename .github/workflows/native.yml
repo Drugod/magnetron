@@ -53,6 +53,7 @@ jobs:
       - name: Prepare pinned native engines and licenses
         run: python scripts/prepare-native.py
       - run: python scripts/test-native-preparation.py
+      - run: python scripts/test-engine-guard.py
       - run: npm test
       - run: npm run build
       # Hosted Intel runners can have an unresolvable local hostname. aMuled

@@ -503,13 +503,10 @@ impl Downloads {
     }
     fn save(&self) -> Result<(), String> {
         let records = self.records.lock().map_err(|e| e.to_string())?;
-        let temp = self.dir.join("downloads.json.tmp");
-        std::fs::write(
-            &temp,
-            serde_json::to_vec(&*records).map_err(|e| e.to_string())?,
+        crate::secure_fs::atomic_private(
+            &self.dir.join("downloads.json"),
+            &serde_json::to_vec(&*records).map_err(|e| e.to_string())?,
         )
-        .map_err(|e| e.to_string())?;
-        std::fs::rename(temp, self.dir.join("downloads.json")).map_err(|e| e.to_string())
     }
     pub(crate) async fn session(&self) -> Result<&Arc<Session>, String> {
         self.session

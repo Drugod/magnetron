@@ -6,6 +6,8 @@ use crate::{
 };
 use md5::{Digest, Md5};
 use serde::{Deserialize, Serialize};
+#[cfg(unix)]
+use std::os::unix::process::CommandExt;
 use std::{
     collections::BTreeMap,
     path::{Path, PathBuf},
@@ -41,8 +43,10 @@ impl Running {
 }
 pub struct Downloads {
     executable: PathBuf,
+    runtime: PathBuf,
     data: PathBuf,
     store: Mutex<Store>,
+    save_lock: Mutex<()>,
     running: AsyncMutex<Option<Running>>,
     control: AsyncMutex<()>,
     monitor: Mutex<Option<tokio::task::JoinHandle<()>>>,
@@ -179,7 +183,14 @@ fn print_startup_summary(data: &Path) {
 }
 impl Downloads {
     pub fn new(executable: PathBuf, data: PathBuf) -> Result<Arc<Self>, String> {
-        std::fs::create_dir_all(&data).map_err(|e| e.to_string())?;
+        Self::new_with_runtime(executable, data, crate::platform::dev_runtime())
+    }
+    pub fn new_with_runtime(
+        executable: PathBuf,
+        data: PathBuf,
+        runtime: PathBuf,
+    ) -> Result<Arc<Self>, String> {
+        crate::secure_fs::private_dir(&data)?;
         let file = data.join("downloads.json");
         let mut store: Store = if file.exists() {
             serde_json::from_slice(&std::fs::read(file).map_err(|e| e.to_string())?)
@@ -196,8 +207,10 @@ impl Downloads {
         }
         Ok(Arc::new(Self {
             executable,
+            runtime,
             data,
             store: Mutex::new(store),
+            save_lock: Mutex::new(()),
             running: AsyncMutex::new(None),
             control: AsyncMutex::new(()),
             monitor: Mutex::new(None),
@@ -209,10 +222,9 @@ impl Downloads {
         }))
     }
     fn save(&self) -> Result<(), String> {
+        let _guard = self.save_lock.lock().map_err(|e| e.to_string())?;
         let data = serde_json::to_vec(&*self.store.lock().unwrap()).map_err(|e| e.to_string())?;
-        let tmp = self.data.join("downloads.json.tmp");
-        std::fs::write(&tmp, data).map_err(|e| e.to_string())?;
-        std::fs::rename(tmp, self.data.join("downloads.json")).map_err(|e| e.to_string())
+        crate::secure_fs::atomic_private(&self.data.join("downloads.json"), &data)
     }
     pub fn list(&self) -> Vec<Download> {
         self.store
@@ -331,9 +343,12 @@ impl Downloads {
     }
     async fn start(&self) -> Result<(), String> {
         let mut running = self.running.lock().await;
-        if running.is_some() {
-            return Ok(());
+        if let Some(engine) = running.as_mut() {
+            if matches!(engine.child.try_wait(), Ok(None)) {
+                return Ok(());
+            }
         }
+        running.take();
         if !self.executable.is_file() {
             return Err("Falta el motor eD2k incluido con MAGNETRON".into());
         }
@@ -383,7 +398,7 @@ impl Downloads {
             "MaxUpload=100",
             &format!("MaxUpload={up}\nMaxDownload={down}"),
         );
-        std::fs::write(self.data.join("amule.conf"), config).map_err(|e| e.to_string())?;
+        crate::secure_fs::atomic_private(&self.data.join("amule.conf"), config.as_bytes())?;
         // Never reload stale shares before the current explicit selection is applied.
         for file in [
             "shareddir.dat",
@@ -421,19 +436,18 @@ impl Downloads {
             use std::os::windows::process::CommandExt;
             command.creation_flags(0x08000000);
         }
+        #[cfg(unix)]
+        command.process_group(0);
         let mut child = command
             .spawn()
             .map_err(|e| format!("No se pudo iniciar eD2k: {e}"))?;
-        #[cfg(windows)]
-        let job = match Job::attach(&child) {
+        let job = match Job::attach(&child, &self.runtime) {
             Ok(j) => j,
             Err(e) => {
                 let _ = child.kill();
                 return Err(e);
             }
         };
-        #[cfg(not(windows))]
-        let job = Job;
         let mut connection = None;
         let mut last_error = String::new();
         for _ in 0..80 {

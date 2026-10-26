@@ -96,6 +96,7 @@ def main():
     site=native/'v2/lib/python3.13/site-packages'
     unzip(fetch(assets['wheel']),site)
     shutil.copy2(ROOT/'src-tauri/v2/worker.py',native/'v2/worker.py')
+    shutil.copy2(ROOT/'src-tauri/v2/engine_guard.py',native/'v2/engine_guard.py')
     shutil.copy2(ROOT/'docs/licenses/libtorrent-2.1.1-LICENSE.txt',native/'v2/LICENSE-libtorrent.txt')
     licenses=native/'licenses';licenses.mkdir()
     shutil.copy2(fetch(LOCK['sources']['amule']),licenses/'aMule-3.1.0-source.tar.gz')

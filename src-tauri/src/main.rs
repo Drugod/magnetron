@@ -13,6 +13,9 @@ mod kad;
 mod links;
 mod model;
 mod platform;
+#[cfg(unix)]
+mod process_guard;
+mod secure_fs;
 mod sharing;
 mod sources;
 mod storage;
@@ -631,9 +634,14 @@ fn main() {
                 let _ = links::register_link_handlers(app.handle().clone());
             }
             let dir = app.path().app_local_data_dir()?;
-            std::fs::create_dir_all(&dir)?;
+            crate::secure_fs::private_dir(&dir).map_err(std::io::Error::other)?;
             let storage =
                 Storage::new(&dir.join("magnet.sqlite")).map_err(std::io::Error::other)?;
+            let runtime = if cfg!(debug_assertions) {
+                platform::dev_runtime()
+            } else {
+                app.path().resource_dir()?.join("v2")
+            };
             let mut executable = app
                 .path()
                 .resource_dir()?
@@ -643,7 +651,8 @@ fn main() {
             if !executable.is_file() {
                 executable = platform::dev_jackett();
             }
-            let engine = engine::Engine::new(executable, dir.join("engine"));
+            let engine =
+                engine::Engine::new_with_runtime(executable, dir.join("engine"), runtime.clone());
             let update_data = dir.join("engine");
             tauri::async_runtime::spawn(async move {
                 tokio::time::sleep(std::time::Duration::from_secs(15)).await;
@@ -661,15 +670,13 @@ fn main() {
             if !ed2k_executable.is_file() {
                 ed2k_executable = platform::dev_amule();
             }
-            let ed2k_downloads =
-                ed2k_downloads::Downloads::new(ed2k_executable, dir.join("ed2k-downloads"))
-                    .map_err(std::io::Error::other)?;
+            let ed2k_downloads = ed2k_downloads::Downloads::new_with_runtime(
+                ed2k_executable,
+                dir.join("ed2k-downloads"),
+                runtime.clone(),
+            )
+            .map_err(std::io::Error::other)?;
             let sharing = sharing::Sharing::new(downloads.clone(), ed2k_downloads.clone());
-            let runtime = if cfg!(debug_assertions) {
-                platform::dev_runtime()
-            } else {
-                app.path().resource_dir()?.join("v2")
-            };
             let v2_downloads = v2::Downloads::new(runtime.clone(), dir.join("v2-downloads"))
                 .map_err(std::io::Error::other)?;
             let initial_shares = storage

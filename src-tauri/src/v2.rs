@@ -1,6 +1,8 @@
 //! Pure BEP 52 transfers through an isolated, bundled libtorrent worker over stdio.
 use crate::downloads::Download;
 use serde::{Deserialize, Serialize};
+#[cfg(unix)]
+use std::os::unix::process::CommandExt;
 use std::{
     collections::BTreeMap,
     io::{BufRead, Write},
@@ -27,6 +29,7 @@ pub struct Downloads {
     records: Mutex<BTreeMap<String, Entry>>,
     jobs: Mutex<BTreeMap<String, Running>>,
     control: Mutex<()>,
+    save_lock: Mutex<()>,
     limits: Mutex<(u32, u32)>,
 }
 pub fn identity(uri: &str) -> Result<(String, String), String> {
@@ -114,17 +117,15 @@ impl Downloads {
             records: Mutex::new(records),
             jobs: Mutex::new(BTreeMap::new()),
             control: Mutex::new(()),
+            save_lock: Mutex::new(()),
             limits: Mutex::new((0, 0)),
         }))
     }
     fn save(&self) -> Result<(), String> {
+        let _guard = self.save_lock.lock().map_err(|e| e.to_string())?;
         let bytes =
             serde_json::to_vec(&*self.records.lock().unwrap()).map_err(|e| e.to_string())?;
-        let mut file = tempfile::NamedTempFile::new_in(&self.data).map_err(|e| e.to_string())?;
-        file.write_all(&bytes).map_err(|e| e.to_string())?;
-        file.persist(self.data.join("downloads.json"))
-            .map_err(|e| e.to_string())?;
-        Ok(())
+        crate::secure_fs::atomic_private(&self.data.join("downloads.json"), &bytes)
     }
     pub fn list(&self) -> Vec<Download> {
         self.records
@@ -239,10 +240,12 @@ impl Downloads {
             use std::os::windows::process::CommandExt;
             cmd.creation_flags(0x08000000);
         }
+        #[cfg(unix)]
+        cmd.process_group(0);
         let mut child = cmd
             .spawn()
             .map_err(|e| format!("No se pudo iniciar BitTorrent v2: {e}"))?;
-        let job = match crate::engine::Job::attach(&child) {
+        let job = match crate::engine::Job::attach(&child, &self.runtime) {
             Ok(job) => job,
             Err(e) => {
                 let _ = child.kill();
@@ -460,8 +463,10 @@ pub fn verify(
         use std::os::windows::process::CommandExt;
         cmd.creation_flags(0x08000000);
     }
+    #[cfg(unix)]
+    cmd.process_group(0);
     let mut child = cmd.spawn().map_err(|e| e.to_string())?;
-    let _job = match crate::engine::Job::attach(&child) {
+    let _job = match crate::engine::Job::attach(&child, runtime) {
         Ok(job) => job,
         Err(e) => {
             let _ = child.kill();
@@ -521,7 +526,10 @@ mod tests {
         let runtime = crate::platform::dev_runtime();
         let seed_dir = tmp.path().join("seed");
         std::fs::create_dir(&seed_dir).unwrap();
-        let mut child = Command::new(crate::platform::python(&runtime))
+        let mut seed_command = Command::new(crate::platform::python(&runtime));
+        #[cfg(unix)]
+        seed_command.process_group(0);
+        let mut child = seed_command
             .arg("-I")
             .arg("-u")
             .arg(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../scripts/test-v2.py"))
@@ -532,7 +540,7 @@ mod tests {
             .stderr(Stdio::null())
             .spawn()
             .unwrap();
-        let _job = crate::engine::Job::attach(&child).unwrap();
+        let _job = crate::engine::Job::attach(&child, &runtime).unwrap();
         let mut output = std::io::BufReader::new(child.stdout.take().unwrap());
         let mut uri = String::new();
         output.read_line(&mut uri).unwrap();
