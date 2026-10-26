@@ -704,6 +704,20 @@ async function init() {
       } else if (e.kind === "warning") toast(e.message ?? "Aviso");
     });
     settings = await invoke<Settings>("get_settings");
+    const recovery = await invoke<string[]>("take_recovery_notices");
+    if (recovery.length) {
+      const notice = textEl("section", "", "notice recovery-notice");
+      notice.setAttribute("role", "status");
+      for (const message of recovery) notice.append(textEl("p", message));
+      const dismiss = textEl(
+        "button",
+        "Entendido",
+        "text-button",
+      ) as HTMLButtonElement;
+      dismiss.onclick = () => notice.remove();
+      notice.append(dismiss);
+      $(".window-controls").after(notice);
+    }
     await invoke("set_ui_language", { language: getLanguage() });
     await invoke("set_window_appearance", { theme: getAppearance() });
   } catch (e) {

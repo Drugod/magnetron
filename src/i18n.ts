@@ -25,6 +25,20 @@ let appearance: Appearance = ["light", "dark"].includes(
 export const getLanguage = () => language;
 export const locale = () => (language === "en" ? "en-GB" : "es-ES");
 const pairs: Record<string, string> = {
+  Entendido: "Understood",
+  "BitTorrent: se ha recuperado la última copia válida de la cola. Los archivos descargados se conservan.":
+    "BitTorrent: the last valid queue checkpoint was recovered. Downloaded files are preserved.",
+  "BitTorrent: no se pudo recuperar la cola. Se ha conservado una copia de los datos dañados y no se han borrado archivos descargados.":
+    "BitTorrent: the queue could not be recovered. A copy of the damaged data was preserved and downloaded files were not deleted.",
+  "BitTorrent v2: se ha recuperado la última copia válida de la cola. Los archivos descargados se conservan.":
+    "BitTorrent v2: the last valid queue checkpoint was recovered. Downloaded files are preserved.",
+  "BitTorrent v2: no se pudo recuperar la cola. Se ha conservado una copia de los datos dañados y no se han borrado archivos descargados.":
+    "BitTorrent v2: the queue could not be recovered. A copy of the damaged data was preserved and downloaded files were not deleted.",
+  "eD2k: se ha recuperado la última copia válida de la cola. Los archivos descargados se conservan.":
+    "eD2k: the last valid queue checkpoint was recovered. Downloaded files are preserved.",
+  "eD2k: no se pudo recuperar la cola. Se ha conservado una copia de los datos dañados y no se han borrado archivos descargados.":
+    "eD2k: the queue could not be recovered. A copy of the damaged data was preserved and downloaded files were not deleted.",
+
   "Preferencias rápidas": "Quick preferences",
   "Las actualizaciones se comprueban automáticamente en Windows.":
     "Updates are checked automatically on Windows.",

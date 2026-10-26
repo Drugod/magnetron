@@ -192,12 +192,7 @@ impl Downloads {
     ) -> Result<Arc<Self>, String> {
         crate::secure_fs::private_dir(&data)?;
         let file = data.join("downloads.json");
-        let mut store: Store = if file.exists() {
-            serde_json::from_slice(&std::fs::read(file).map_err(|e| e.to_string())?)
-                .map_err(|e| e.to_string())?
-        } else {
-            Store::default()
-        };
+        let mut store: Store = crate::secure_fs::load_queue(&file, "eD2k")?;
         for r in store.records.values_mut() {
             if !matches!(r.state.as_str(), "completed" | "cancelled") {
                 r.state = "paused".into()
@@ -224,7 +219,7 @@ impl Downloads {
     fn save(&self) -> Result<(), String> {
         let _guard = self.save_lock.lock().map_err(|e| e.to_string())?;
         let data = serde_json::to_vec(&*self.store.lock().unwrap()).map_err(|e| e.to_string())?;
-        crate::secure_fs::atomic_private(&self.data.join("downloads.json"), &data)
+        crate::secure_fs::atomic_queue(&self.data.join("downloads.json"), &data)
     }
     pub fn list(&self) -> Vec<Download> {
         self.store

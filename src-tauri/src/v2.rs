@@ -98,12 +98,8 @@ impl Downloads {
     pub fn new(runtime: PathBuf, data: PathBuf) -> Result<Arc<Self>, String> {
         std::fs::create_dir_all(&data).map_err(|e| e.to_string())?;
         let file = data.join("downloads.json");
-        let mut records: BTreeMap<String, Entry> = if file.exists() {
-            serde_json::from_slice(&std::fs::read(file).map_err(|e| e.to_string())?)
-                .map_err(|e| e.to_string())?
-        } else {
-            BTreeMap::new()
-        };
+        let mut records: BTreeMap<String, Entry> =
+            crate::secure_fs::load_queue(&file, "BitTorrent v2")?;
         for e in records.values_mut() {
             if !matches!(e.row.state.as_str(), "completed" | "cancelled") {
                 e.row.state = "paused".into()
@@ -125,7 +121,7 @@ impl Downloads {
         let _guard = self.save_lock.lock().map_err(|e| e.to_string())?;
         let bytes =
             serde_json::to_vec(&*self.records.lock().unwrap()).map_err(|e| e.to_string())?;
-        crate::secure_fs::atomic_private(&self.data.join("downloads.json"), &bytes)
+        crate::secure_fs::atomic_queue(&self.data.join("downloads.json"), &bytes)
     }
     pub fn list(&self) -> Vec<Download> {
         self.records

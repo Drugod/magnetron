@@ -1,0 +1,71 @@
+name: Prolonged recovery checks
+on:
+  push:
+    branches: [codex/reliability-security]
+    paths:
+      - 'src-tauri/src/**'
+      - 'src-tauri/v2/**'
+      - 'src-tauri/Cargo*'
+      - 'third_party/**'
+      - 'scripts/test-reliability-soak.py'
+      - '.github/workflows/reliability.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: recovery-soak-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  soak:
+    name: ${{ matrix.runner }} recovery soak
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [windows-latest, ubuntu-22.04, macos-15, macos-15-intel]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          cache-on-failure: "true"
+      - name: Linux dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential libxdo-dev libssl-dev librsvg2-dev libayatana-appindicator3-dev xvfb
+      - name: Resolve disposable macOS runner hostname
+        if: runner.os == 'macOS'
+        run: sudo hostname localhost
+      - run: npm ci
+      - run: npm run build
+      - name: Windows engines
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          ./scripts/prepare-engine.ps1
+          ./scripts/prepare-ed2k.ps1
+          ./scripts/prepare-v2.ps1
+          ./scripts/prepare-licenses.ps1
+      - name: Native engines
+        if: runner.os != 'Windows'
+        run: python scripts/prepare-native.py
+      - name: Linux recovery soak
+        if: runner.os == 'Linux'
+        run: xvfb-run -a python scripts/test-reliability-soak.py --minutes 30
+      - name: Windows and macOS recovery soak
+        if: runner.os != 'Linux'
+        run: python scripts/test-reliability-soak.py --minutes 30
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: MAGNETRON-recovery-${{ matrix.runner }}
+          path: artifacts/reliability/
+          if-no-files-found: ignore

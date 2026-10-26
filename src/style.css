@@ -13,8 +13,10 @@
   --text: #24262c;
   --muted: #626773;
   --line: #e3e5eb;
+  --control-border: #7b8391;
+  --toggle-track: #626773;
   --soft: #f0f2f6;
-  --accent: #0669d0;
+  --accent: #075bb5;
   --on-accent: #fff;
   --accent-soft: #087df012;
   --danger: #c43d41;
@@ -29,6 +31,8 @@
   --text: #f1f2f5;
   --muted: #a2a6b0;
   --line: #353943;
+  --control-border: #7b8391;
+  --toggle-track: #747e8e;
   --soft: #2b2f38;
   --accent: #5aa7ff;
   --on-accent: #0c1521;
@@ -538,8 +542,8 @@ input[type="checkbox"] {
   width: 34px;
   height: 20px;
   border-radius: 20px;
-  background: var(--muted);
-  opacity: 0.55;
+  background: var(--toggle-track);
+  opacity: 1;
   position: relative;
   flex-shrink: 0;
   cursor: pointer;
@@ -1094,4 +1098,30 @@ input[type="number"] {
 }
 .workspace > main {
   padding-top: 24px;
+}
+
+/* Keep control boundaries visible independently of decorative separator lines. */
+select,
+input[type="number"],
+.search-box,
+.folder-setting input {
+  border-color: var(--control-border);
+}
+input[type="checkbox"]:checked::after {
+  background: var(--on-accent);
+}
+@media (forced-colors: active) {
+  input[type="checkbox"] {
+    appearance: auto;
+  }
+  input[type="checkbox"]::after {
+    display: none;
+  }
+  .nav.active {
+    outline: 2px solid Highlight;
+  }
+  .primary,
+  .open-button {
+    border: 1px solid ButtonText;
+  }
 }

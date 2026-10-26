@@ -64,6 +64,10 @@ fn event(
     }
 }
 #[tauri::command]
+fn take_recovery_notices() -> Vec<String> {
+    crate::secure_fs::recovery_notices()
+}
+#[tauri::command]
 fn list_favorites(state: State<AppState>) -> Result<Vec<Torrent>, String> {
     state.storage.lock().map_err(|e| e.to_string())?.favorites()
 }
@@ -758,6 +762,7 @@ fn main() {
             set_window_appearance,
             tray::set_ui_language,
             list_downloads,
+            take_recovery_notices,
             add_download,
             download_action,
             remove_download,

@@ -30,6 +30,81 @@ pub fn atomic_private(path: &Path, bytes: &[u8]) -> Result<(), String> {
         .map_err(|e| e.to_string())?;
     Ok(())
 }
+const MAX_STATE_BYTES: usize = 64 * 1024 * 1024;
+static RECOVERY: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
+pub fn recovery_notices() -> Vec<String> {
+    std::mem::take(&mut *RECOVERY.lock().unwrap())
+}
+fn backup(path: &Path) -> std::path::PathBuf {
+    path.with_extension("json.bak")
+}
+fn bounded_read(path: &Path) -> std::io::Result<Vec<u8>> {
+    use std::io::Read;
+    let file = std::fs::File::open(path)?;
+    let mut data = Vec::new();
+    file.take((MAX_STATE_BYTES + 1) as u64)
+        .read_to_end(&mut data)?;
+    if data.len() > MAX_STATE_BYTES {
+        return Err(std::io::Error::other(
+            "Application state exceeds its size limit",
+        ));
+    }
+    Ok(data)
+}
+pub fn atomic_queue(path: &Path, bytes: &[u8]) -> Result<(), String> {
+    if bytes.len() > MAX_STATE_BYTES {
+        return Err("Application state exceeds its size limit".into());
+    }
+    if let Ok(previous) = bounded_read(path) {
+        if previous == bytes {
+            return Ok(());
+        }
+        if serde_json::from_slice::<serde_json::Value>(&previous).is_ok() {
+            atomic_private(&backup(path), &previous)?;
+        }
+    }
+    atomic_private(path, bytes)
+}
+fn quarantine(path: &Path) -> Result<(), String> {
+    if !path.exists() {
+        return Ok(());
+    }
+    let name = path
+        .file_name()
+        .ok_or("Missing state filename")?
+        .to_string_lossy();
+    let target = path.with_file_name(format!("{name}.corrupt-{:016x}", rand::random::<u64>()));
+    std::fs::rename(path, target).map_err(|e| e.to_string())
+}
+pub fn load_queue<T: serde::de::DeserializeOwned + Default>(
+    path: &Path,
+    label: &str,
+) -> Result<T, String> {
+    match bounded_read(path) {
+        Ok(bytes) => {
+            if let Ok(value) = serde_json::from_slice::<T>(&bytes) {
+                return Ok(value);
+            }
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound && !backup(path).exists() => {
+            return Ok(T::default())
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => return Err(e.to_string()),
+        Err(_) => {}
+    }
+    if let Ok(bytes) = bounded_read(&backup(path)) {
+        if let Ok(value) = serde_json::from_slice::<T>(&bytes) {
+            quarantine(path)?;
+            atomic_private(path, &bytes)?;
+            RECOVERY.lock().unwrap().push(format!("{label}: se ha recuperado la última copia válida de la cola. Los archivos descargados se conservan."));
+            return Ok(value);
+        }
+    }
+    quarantine(path)?;
+    quarantine(&backup(path))?;
+    RECOVERY.lock().unwrap().push(format!("{label}: no se pudo recuperar la cola. Se ha conservado una copia de los datos dañados y no se han borrado archivos descargados."));
+    Ok(T::default())
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -97,5 +172,46 @@ mod tests {
         let mut values = variant.array_iter_str().unwrap();
         assert_eq!(values.next_back(), Some("last"));
         assert_eq!(values.nth(1), Some("middle"));
+    }
+    #[test]
+    fn corrupted_queue_recovers_valid_checkpoint_and_preserves_damaged_data() {
+        let tmp = tempfile::tempdir().unwrap();
+        let file = tmp.path().join("downloads.json");
+        atomic_queue(&file, b"[1]").unwrap();
+        atomic_queue(&file, b"[1,2]").unwrap();
+        std::fs::write(&file, b"{").unwrap();
+        assert_eq!(load_queue::<Vec<u32>>(&file, "Test").unwrap(), vec![1]);
+        assert!(std::fs::read_dir(tmp.path()).unwrap().any(|p| p
+            .unwrap()
+            .file_name()
+            .to_string_lossy()
+            .contains(".corrupt-")));
+        assert_eq!(
+            serde_json::from_slice::<Vec<u32>>(&std::fs::read(file).unwrap()).unwrap(),
+            vec![1]
+        );
+    }
+    #[test]
+    fn corrupt_primary_and_backup_do_not_prevent_startup_or_delete_payloads() {
+        let tmp = tempfile::tempdir().unwrap();
+        let file = tmp.path().join("downloads.json");
+        std::fs::write(&file, b"bad").unwrap();
+        std::fs::write(backup(&file), b"bad backup").unwrap();
+        let payload = tmp.path().join("keep.bin");
+        std::fs::write(&payload, b"keep").unwrap();
+        assert!(load_queue::<Vec<u32>>(&file, "Test").unwrap().is_empty());
+        assert_eq!(std::fs::read(payload).unwrap(), b"keep");
+        assert_eq!(
+            std::fs::read_dir(tmp.path())
+                .unwrap()
+                .filter(|p| p
+                    .as_ref()
+                    .unwrap()
+                    .file_name()
+                    .to_string_lossy()
+                    .contains(".corrupt-"))
+                .count(),
+            2
+        );
     }
 }

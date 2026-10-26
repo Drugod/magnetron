@@ -32,6 +32,13 @@ jobs:
       - run: npm run build
       - run: npm run test:rust
       - run: npm run bundle
+      - name: Validate installed distribution and upgrade
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $version=(Get-Content package.json -Raw | ConvertFrom-Json).version
+          ./scripts/test-windows-upgrade.ps1 -Installer "src-tauri/target/release/bundle/nsis/MAGNETRON_${version}_x64-setup.exe" -Version $version
       - uses: actions/upload-artifact@v4
         with:
           name: MAGNETRON-Windows-x64
