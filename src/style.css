@@ -11,10 +11,11 @@
   --surface: #fff;
   --raised: #ffffffed;
   --text: #24262c;
-  --muted: #737782;
+  --muted: #626773;
   --line: #e3e5eb;
   --soft: #f0f2f6;
-  --accent: #087df0;
+  --accent: #0669d0;
+  --on-accent: #fff;
   --accent-soft: #087df012;
   --danger: #c43d41;
   --shadow: 0 8px 32px #1e293b09;
@@ -30,6 +31,7 @@
   --line: #353943;
   --soft: #2b2f38;
   --accent: #5aa7ff;
+  --on-accent: #0c1521;
   --accent-soft: #5aa7ff20;
   --danger: #ff858c;
   --shadow: 0 8px 32px #0002;
@@ -156,7 +158,7 @@ p {
   height: 32px;
   border-radius: 10px;
   background: var(--accent);
-  color: white;
+  color: var(--on-accent);
   font-size: 29px;
   line-height: 1;
   transform: rotate(-30deg);
@@ -288,7 +290,7 @@ main {
   display: grid;
   place-items: center;
   background: var(--accent);
-  color: white;
+  color: var(--on-accent);
   border-radius: 12px;
   flex-shrink: 0;
 }
@@ -453,7 +455,7 @@ select {
 .primary,
 .open-button {
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
   padding: 10px 16px;
   border-radius: 9px;
   font-weight: 550;
@@ -842,7 +844,7 @@ input[type="number"] {
 .download-context-menu button:hover,
 .download-context-menu button:focus-visible {
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
 }
 .download-delete-confirmation {
   padding: 20px;

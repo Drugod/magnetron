@@ -12,6 +12,7 @@ try {
   assert(ready,'Preview server failed to start');
   browser=await chromium.launch({headless:true});
   const page=await browser.newPage({viewport:{width:1250,height:850}});
+  await page.emulateMedia({reducedMotion:'reduce'});
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.goto('http://127.0.0.1:1420');
   await page.addScriptTag({content:axe.source});

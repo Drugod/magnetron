@@ -50,13 +50,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev librsvg2-dev libayatana-appindicator3-dev patchelf xvfb
       - run: npm ci
-      - name: Prepare pinned native engines and licenses
-        run: python scripts/prepare-native.py
-      - run: python scripts/test-native-preparation.py
-      - run: python scripts/test-engine-guard.py
-      - run: python scripts/check-vendor-patches.py
-      - run: npm test
-      - run: npm run build
       # Hosted Intel runners can have an unresolvable local hostname. aMuled
       # resolves it synchronously before opening its control socket. This entry
       # describes only the disposable runner, never an end user's machine.
@@ -65,6 +58,13 @@ jobs:
         run: |
           sudo hostname localhost
           python -c "import socket; assert socket.gethostname() == 'localhost'; assert socket.getaddrinfo(socket.gethostname(), None)"
+      - name: Prepare pinned native engines and licenses
+        run: python scripts/prepare-native.py
+      - run: python scripts/test-native-preparation.py
+      - run: python scripts/test-engine-guard.py
+      - run: python scripts/check-vendor-patches.py
+      - run: npm test
+      - run: npm run build
       - name: Test Rust on Linux
         if: runner.os == 'Linux'
         run: xvfb-run -a cargo test --locked --manifest-path src-tauri/Cargo.toml

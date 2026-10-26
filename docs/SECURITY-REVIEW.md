@@ -24,3 +24,11 @@ The local npm audit on October 26, 2026 reported zero known vulnerabilities. Thi
 ## Remaining acceptance work
 
 Run the native process-guard and persistence tests, exercise real engine restart, run prolonged synthetic transfer/interruption/recovery scenarios, review IPC/path/network handling and keyboard/screen-reader semantics, and verify package contents and relocated runtimes. Record actual results before closing findings. Do not mark these complete based only on source preparation.
+
+## Dependency remediation evidence
+
+The first RustSec run reported RUSTSEC-2026-0293 (ringbuf) and RUSTSEC-2026-0367/0368/0369 (zip), plus informational maintenance/GLib unsoundness notices. ZIP is upgraded to 9.1.2. The reviewed librqbit-utp manifest patch upgrades ringbuf to 0.5.3. GTK3-compatible GLib carries the exact upstream pointer-mutability correction for RUSTSEC-2024-0429. `check-vendor-patches.py` checks every retained upstream file and reconstructs the allowed modifications; an optimized Linux iterator test additionally gates builds. The single audit exception is for that backported GLib fix, not the unmodified registry package.
+
+Security workflow run 40415928690 passed at commit 8fd5127. Informational unmaintained-package notices remain visible and tracked: fxhash, proc-macro-error, zbus_names, zvariant and zvariant_derive. They are upstream dependency-maintenance risks, not proof of exploitation; they are not silently suppressed. Known vulnerabilities and unpatched unsoundness fail the gate. Subsequent dependency changes must rerun the same checks.
+
+The first real-browser WCAG scan found insufficient contrast in light-theme muted text and accent buttons; the palette and accent foregrounds are corrected. The scan checks both languages, themes and main views, and honours reduced-motion so it measures settled colours. Verification of those changes remains pending the next accessibility run.

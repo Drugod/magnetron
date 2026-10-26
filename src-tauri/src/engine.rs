@@ -581,6 +581,34 @@ mod tests {
         assert_eq!(rows[1].content_types, vec!["documents"]);
     }
     #[tokio::test]
+    async fn bundled_engine_recovers_after_owned_process_crash() {
+        let tmp = tempfile::tempdir().unwrap();
+        let engine = Engine::new(crate::platform::dev_jackett(), tmp.path().join("engine"));
+        let first = engine.connection().await.unwrap();
+        assert!(!first.catalog.is_empty());
+        let previous = {
+            let mut slot = engine.child.lock().unwrap();
+            let child = slot.as_mut().unwrap();
+            let pid = child.id();
+            child.kill().unwrap();
+            child.wait().unwrap();
+            pid
+        };
+        let restarted = engine.connection().await.unwrap();
+        assert!(
+            restarted.key != first.key,
+            "Recovered engine must use fresh control credentials"
+        );
+        assert_ne!(
+            engine.child.lock().unwrap().as_ref().unwrap().id(),
+            previous
+        );
+        assert!(!restarted.catalog.is_empty());
+        engine.shutdown().await;
+        assert!(engine.child.lock().unwrap().is_none());
+        assert!(!tmp.path().join("engine/ServerConfig.json").exists());
+    }
+    #[tokio::test]
     #[ignore = "Arranca el motor incluido y consulta fuentes públicas"]
     async fn live_engine() {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))

@@ -1310,6 +1310,21 @@ mod tests {
             engine.list()[0].state.as_str(),
             "waiting" | "downloading"
         ));
+        let previous = {
+            let mut slot = engine.running.lock().await;
+            let running = slot.as_mut().unwrap();
+            let pid = running.child.id();
+            running.child.kill().unwrap();
+            running.child.wait().unwrap();
+            pid
+        };
+        engine.start().await.unwrap();
+        assert_ne!(
+            engine.running.lock().await.as_ref().unwrap().child.id(),
+            previous
+        );
+        engine.action(&id, "resume").await.unwrap();
+        engine.update().await.unwrap();
         engine.shutdown().await;
         drop(engine);
         let restored = Downloads::new(exe, root.join("config")).unwrap();
