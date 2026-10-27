@@ -356,21 +356,18 @@ impl Downloads {
         }
         let parts = safe_dir(&root.join("parts"))?;
         let incoming = safe_dir(&root.join("incoming"))?;
-        let port = std::net::TcpListener::bind("127.0.0.1:0")
-            .map_err(|e| e.to_string())?
+        // Keep reservations alive together: dropping each immediately allows the
+        // OS to choose the same TCP port for control and peer traffic.
+        let control_socket =
+            std::net::TcpListener::bind("127.0.0.1:0").map_err(|e| e.to_string())?;
+        let peer_socket = std::net::TcpListener::bind("0.0.0.0:0").map_err(|e| e.to_string())?;
+        let udp_socket = std::net::UdpSocket::bind("0.0.0.0:0").map_err(|e| e.to_string())?;
+        let port = control_socket
             .local_addr()
-            .unwrap()
-            .port();
-        let peer_port = std::net::TcpListener::bind("0.0.0.0:0")
             .map_err(|e| e.to_string())?
-            .local_addr()
-            .unwrap()
             .port();
-        let udp_port = std::net::UdpSocket::bind("0.0.0.0:0")
-            .map_err(|e| e.to_string())?
-            .local_addr()
-            .unwrap()
-            .port();
+        let peer_port = peer_socket.local_addr().map_err(|e| e.to_string())?.port();
+        let udp_port = udp_socket.local_addr().map_err(|e| e.to_string())?.port();
         let pass = hex::encode(Md5::digest(rand::random::<[u8; 32]>()));
         let (down, up) = *self.limits.lock().unwrap();
         // Only engine-owned directories are shared. Completed files are moved out.
@@ -428,6 +425,7 @@ impl Downloads {
             use std::os::windows::process::CommandExt;
             command.creation_flags(0x08000000);
         }
+        drop((control_socket, peer_socket, udp_socket));
         let mut child = OwnedProcess::spawn(&mut command, &self.runtime)?;
         let mut connection = None;
         let mut last_error = String::new();
