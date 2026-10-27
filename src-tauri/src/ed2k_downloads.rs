@@ -1216,6 +1216,12 @@ mod tests {
                             }
                             _ => None,
                         };
+                        // Synthetic fixture traffic only: never print payloads or credentials.
+                        eprintln!(
+                            "Controlled eD2k server: opcode={} response={}",
+                            payload[0],
+                            response.is_some()
+                        );
                         if let Some(response) = response {
                             if socket.write_u8(0xe3).await.is_err()
                                 || socket.write_u32_le(response.len() as u32).await.is_err()
@@ -1481,6 +1487,16 @@ mod tests {
             .map_err(|_| "Timed out downloading from the controlled eD2k seed".to_string())?
         }
         .await;
+        if result.is_err() {
+            for row in client.list() {
+                eprintln!(
+                    "Controlled eD2k transfer: state={} completed={} total={} speed={}",
+                    row.state, row.completed_bytes, row.total_bytes, row.download_speed
+                );
+            }
+            print_startup_summary(&root.join("client-config"));
+            print_startup_summary(&root.join("seed-config"));
+        }
         client.shutdown().await;
         seed.shutdown().await;
         server_job.abort();

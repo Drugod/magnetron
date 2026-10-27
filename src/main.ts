@@ -1,4 +1,6 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
+import { getVersion } from "@tauri-apps/api/app";
+import packageInfo from "../package.json";
 import { listen } from "@tauri-apps/api/event";
 import {
   bytes,
@@ -903,8 +905,18 @@ setInterval(() => void refreshIndex(), 3000);
 
 $("#settings-form .dialog-actions").insertAdjacentHTML(
   "beforebegin",
-  `<details class="advanced-settings"><summary>Actualizaciones de MAGNETRON</summary><p id="app-update-state" class="muted" role="status">Las actualizaciones se comprueban automáticamente en Windows.</p><div class="dialog-actions"><button type="button" id="check-app-update" class="text-button">Comprobar actualizaciones</button><button type="button" id="install-app-update" class="text-button" hidden>Instalar actualización y cerrar</button></div></details>`,
+  `<details class="advanced-settings"><summary><span>Actualizaciones de MAGNETRON</span> · <span id="installed-app-version"></span></summary><p id="app-update-state" class="muted" role="status">Las actualizaciones se comprueban automáticamente en Windows.</p><div class="dialog-actions"><button type="button" id="check-app-update" class="text-button">Comprobar actualizaciones</button><button type="button" id="install-app-update" class="text-button" hidden>Instalar actualización y cerrar</button></div></details>`,
 );
+// Read the installed binary version, independently of available updates.
+$("#installed-app-version").textContent = `v${packageInfo.version}`;
+if (isTauri()) {
+  void getVersion()
+    .then((version) => {
+      $("#installed-app-version").textContent = `v${version}`;
+    })
+    .catch((error) => console.error("Cannot read installed application version", error));
+}
+
 type AppUpdateStatus = {
   configured: boolean;
   ready: boolean;
