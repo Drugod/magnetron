@@ -59,3 +59,7 @@ These new video and updater changes must pass the full matrix and installer chec
 On October 28, 2026 the OSV PyPI query returned no known advisories for the pinned yt-dlp 2026.10.26, yt-dlp-ejs 0.8.0 and certifi 2026.10.23 wheels. The read-only audit is included in scheduled CI and preserves its response artifact. This is a point-in-time check, not an assertion that every native dependency is vulnerability-free.
 
 Node 24.22.1 is the upstream security release documented at https://nodejs.org/en/blog/release/v24.22.1 ; target binary hashes match its official release checksums. EJS invokes Node with the permission model enabled. The worker removes NODE_OPTIONS/NODE_PATH and permits only the YouTube extractor. FFmpeg has no network protocols enabled and only the required local demux/mux/parser paths are built.
+
+## Public video smoke test
+
+On October 28, 2026 the Windows packaged video tools successfully fetched metadata for a public short video (25 formats), downloaded it at the selected 360p maximum, probed its video stream and published one 474,561-byte file directly in the selected test directory. No cookies/account were used and the temporary payload was deleted after verification. The previous upstream test-video URL had become unavailable; the opt-in script accepts a replacement URL. This demonstrates one public-service transfer, not universal YouTube availability.

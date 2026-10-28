@@ -152,8 +152,15 @@ def main():
     RATE=max(0,int(request.get('down',0)))*1024
     threading.Thread(target=commands,daemon=True).start()
     last=[0.0]
+    named=[False]
     def progress(data):
         if STOP.is_set():raise InterruptedError('Download stopped')
+        if not named[0]:
+            title=str((data.get('info_dict') or {}).get('title') or '')
+            title=''.join(c for c in title if unicodedata.category(c) not in ('Cc','Cf','Cs'))[:512]
+            if title:
+                emit('metadata',name=title,files=[],total=int(data.get('total_bytes') or data.get('total_bytes_estimate') or 0))
+                named[0]=True
         now=time.monotonic()
         if now-last[0]<.4 and data.get('status')!='finished':return
         last[0]=now

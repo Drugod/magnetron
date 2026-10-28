@@ -77,6 +77,8 @@ class VideoSafety(unittest.TestCase):
                     self.asserted_uri=uri
                     assert '[height<=720]' in self.options['format']
                     assert self.options['noplaylist'] and not self.options['remote_components']
+                    for hook in self.options['progress_hooks']:
+                        hook({'status':'downloading','info_dict':{'title':'Safe / video title'},'downloaded_bytes':1,'total_bytes':output.stat().st_size})
                     final=stage/'payload.mkv';shutil.copyfile(output,final)
                     return {'id':'abcdefgh_-1','title':'Safe / video title','filepath':str(final)}
             events=io.StringIO()
@@ -85,7 +87,10 @@ class VideoSafety(unittest.TestCase):
                 m.main()
             messages=[json.loads(line) for line in events.getvalue().splitlines()]
             self.assertEqual(messages[-1]['kind'],'completed')
-            metadata=next(event for event in messages if event['kind']=='metadata')
+            metadata_events=[event for event in messages if event['kind']=='metadata']
+            self.assertEqual(metadata_events[0]['name'],'Safe / video title')
+            self.assertEqual(metadata_events[0]['files'],[])
+            metadata=metadata_events[-1]
             self.assertEqual(len(list(dest.iterdir())),1)
             self.assertEqual((dest/metadata['files'][0]).read_bytes(),output.read_bytes())
             self.assertFalse((stage/'payload.mkv').exists(),'Completed videos must not retain a duplicate payload')

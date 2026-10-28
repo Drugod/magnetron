@@ -4,7 +4,7 @@ ROOT=pathlib.Path(__file__).resolve().parents[1]
 parser=argparse.ArgumentParser()
 parser.add_argument('--runtime',required=True)
 parser.add_argument('--python',default=sys.executable)
-parser.add_argument('--url',default='https://www.youtube.com/watch?v=BaW_jenozKc')
+parser.add_argument('--url',default='https://www.youtube.com/watch?v=jNQXAC9IVRw')
 args=parser.parse_args()
 runtime=pathlib.Path(args.runtime).resolve()
 cache=ROOT/'.local-docs';cache.mkdir(exist_ok=True)
