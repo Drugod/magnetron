@@ -1160,6 +1160,39 @@ mod tests {
         assert!(result.is_ok(), "{result:?}");
     }
 
+    fn print_synthetic_log(data: &Path) {
+        // Only called for freshly created controlled CI profiles, never user
+        // profiles. Drop credential lines and redact long hexadecimal values.
+        let Ok(file) = std::fs::File::open(data.join("logfile")) else {
+            return;
+        };
+        use std::io::Read;
+        let mut bytes = Vec::new();
+        let _ = file.take(65536).read_to_end(&mut bytes);
+        let text = String::from_utf8_lossy(&bytes);
+        let lines: Vec<_> = text.lines().collect();
+        for line in lines.iter().skip(lines.len().saturating_sub(45)) {
+            let lower = line.to_lowercase();
+            if ["password", "auth", "secret", "token", "key"]
+                .iter()
+                .any(|p| lower.contains(p))
+            {
+                continue;
+            }
+            let safe = line
+                .split_whitespace()
+                .map(|word| {
+                    if word.bytes().filter(u8::is_ascii_hexdigit).count() >= 24 {
+                        "<hex-redacted>"
+                    } else {
+                        word
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join(" ");
+            eprintln!("Synthetic eD2k log: {safe}");
+        }
+    }
     async fn test_server(
         ip: std::net::Ipv4Addr,
         source: Arc<Mutex<Option<(Vec<u8>, u16)>>>,
@@ -1177,6 +1210,10 @@ mod tests {
                 // A high eD2k ID is the actual IPv4 address in wire order;
                 // invented per-client IPs break peer identity/secure handshakes.
                 let id = u32::from_le_bytes(ip.octets());
+                eprintln!(
+                    "Controlled eD2k server: assigned_high_id={}",
+                    id >= 0x01000000
+                );
                 let source = source.clone();
                 let ready = ready.clone();
                 tokio::spawn(async move {
@@ -1516,6 +1553,8 @@ mod tests {
             }
             print_startup_summary(&root.join("client-config"));
             print_startup_summary(&root.join("seed-config"));
+            print_synthetic_log(&root.join("seed-config"));
+            print_synthetic_log(&root.join("client-config"));
         }
         client.shutdown().await;
         seed.shutdown().await;
