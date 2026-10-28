@@ -31,7 +31,7 @@ export function replaceFile(source,target,backup) {
   const temporary=target+'.new-'+crypto.randomBytes(12).toString('hex');
   try {
     fs.copyFileSync(source,temporary,fs.constants.COPYFILE_EXCL);fs.chmodSync(temporary,0o755);
-    const fd=fs.openSync(temporary,'r');try{fs.fsyncSync(fd);}finally{fs.closeSync(fd);}
+    const fd=fs.openSync(temporary,'r+');try{fs.fsyncSync(fd);}finally{fs.closeSync(fd);}
     // Keep the launch path present throughout replacement, including a crash
     // between backup creation and commit. Fall back to copy on FAT/exFAT.
     try{fs.linkSync(target,backup);}catch(error){
