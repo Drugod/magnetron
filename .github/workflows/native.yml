@@ -115,6 +115,11 @@ jobs:
         env:
           MAGNETRON_UPDATE_PRIVATE_KEY: ${{ secrets.MAGNETRON_UPDATE_PRIVATE_KEY }}
         run: python scripts/sign-native-updates.py
+      - name: Validate actual signed native package
+        if: github.event_name == 'workflow_dispatch' && inputs.sign_updates
+        env:
+          MAGNETRON_UPDATE_TEST_DIR: ${{ github.workspace }}/artifacts
+        run: cargo test --locked --manifest-path src-tauri/Cargo.toml validates_real_signed_native_release_before_installation -- --ignored
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}

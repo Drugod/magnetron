@@ -51,6 +51,15 @@ fn official_url(version: &str) -> String {
     format!("https://github.com/Drugod/magnetron/releases/download/v{version}/MAGNETRON_{version}_{suffix}")
 }
 fn channel() -> Option<(&'static str, &'static str)> {
+    if !(cfg!(all(windows, target_arch = "x86_64"))
+        || cfg!(all(target_os = "linux", target_arch = "x86_64"))
+        || cfg!(all(
+            target_os = "macos",
+            any(target_arch = "x86_64", target_arch = "aarch64")
+        )))
+    {
+        return None;
+    }
     let url = match platform() {
         "linux-appimage" => "https://github.com/Drugod/magnetron/releases/latest/download/linux-appimage-update.json",
         "linux-deb" => "https://github.com/Drugod/magnetron/releases/latest/download/linux-deb-update.json",
@@ -274,6 +283,13 @@ pub fn launch_native(app: &tauri::AppHandle, installer: &Path) -> Result<(), Str
         }
         exe.clone()
     };
+    if platform() != "linux-deb" {
+        let parent = target
+            .parent()
+            .ok_or("La ubicación instalada no es válida")?;
+        tempfile::NamedTempFile::new_in(parent)
+            .map_err(|_| "No se puede actualizar en esta ubicación. Mueve MAGNETRON a una carpeta con permisos de escritura")?;
+    }
     let mut runtime = app
         .path()
         .resource_dir()
@@ -386,6 +402,37 @@ mod tests {
         for invalid in ["0.8", "0.8.1.2", "0.08.1", "0.8.-1", "0.8.+1"] {
             assert!(version(invalid).is_err());
         }
+    }
+    #[cfg(unix)]
+    #[test]
+    #[ignore = "Requires the signed native artifact from the reviewed release workflow"]
+    fn validates_real_signed_native_release_before_installation() {
+        let source = PathBuf::from(std::env::var("MAGNETRON_UPDATE_TEST_DIR").unwrap());
+        let manifest = std::fs::read(source.join(format!("{}-update.json", platform()))).unwrap();
+        let key = include_str!("../update-public-key.txt").trim();
+        let release = verify(&manifest, key).unwrap();
+        let filename = release.url.rsplit('/').next().unwrap();
+        let temporary = tempfile::tempdir().unwrap();
+        std::fs::copy(
+            source.join(filename),
+            temporary.path().join("installer.exe"),
+        )
+        .unwrap();
+        std::fs::write(temporary.path().join("manifest.json"), manifest).unwrap();
+        assert!(validate_staged(temporary.path(), key, "0.8.1").is_ok());
+        assert!(validate_staged(temporary.path(), key, &release.version).is_err());
+        use std::io::{Read, Seek, SeekFrom, Write};
+        let mut file = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(temporary.path().join("installer.exe"))
+            .unwrap();
+        let mut byte = [0];
+        file.read_exact(&mut byte).unwrap();
+        file.seek(SeekFrom::Start(0)).unwrap();
+        file.write_all(&[byte[0] ^ 1]).unwrap();
+        drop(file);
+        assert!(validate_staged(temporary.path(), key, "0.8.1").is_err());
     }
     #[cfg(windows)]
     #[test]

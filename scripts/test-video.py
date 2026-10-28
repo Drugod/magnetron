@@ -1,5 +1,6 @@
 """Offline video safety and actual bundled mux/probe tests; no public downloads."""
-import importlib.util,io,json,os,pathlib,subprocess,sys,tempfile,threading,time,unittest
+import importlib.util,io,json,os,pathlib,subprocess,sys,tempfile,threading,time,unittest,contextlib,shutil
+from unittest.mock import patch
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 spec=importlib.util.spec_from_file_location('video_worker',ROOT/'src-tauri/v2/video_worker.py')
 m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
@@ -48,4 +49,27 @@ class VideoSafety(unittest.TestCase):
             sys.path.insert(0,str(runtime/'video-packages'))
             import yt_dlp,yt_dlp_ejs
             self.assertTrue(yt_dlp.YoutubeDL)
+            # Exercise the actual worker pipeline with a controlled extractor;
+            # muxing, probing, destination publication and JSON events remain real.
+            stage=root/'stage';stage.mkdir();dest=root/'downloads';dest.mkdir()
+            request={'uri':'https://www.youtube.com/watch?v=abcdefgh_-1','folder':str(dest.resolve()),'staging':str(stage.resolve()),'quality':720}
+            class Extractor:
+                def __init__(self,options):self.options=options
+                def __enter__(self):return self
+                def __exit__(self,*args):pass
+                def extract_info(self,uri,download):
+                    self.asserted_uri=uri
+                    assert '[height<=720]' in self.options['format']
+                    assert self.options['noplaylist'] and not self.options['remote_components']
+                    final=stage/'payload.mkv';shutil.copyfile(output,final)
+                    return {'id':'abcdefgh_-1','title':'Safe / video title','filepath':str(final)}
+            events=io.StringIO()
+            m.STOP.clear()
+            with patch.object(m,'__file__',str(runtime/'video_worker.py')),patch.object(m,'commands',lambda:None),patch.object(m.sys,'stdin',io.StringIO(json.dumps(request)+'\n')),patch.object(yt_dlp,'YoutubeDL',Extractor),contextlib.redirect_stdout(events):
+                m.main()
+            messages=[json.loads(line) for line in events.getvalue().splitlines()]
+            self.assertEqual(messages[-1]['kind'],'completed')
+            metadata=next(event for event in messages if event['kind']=='metadata')
+            self.assertEqual(len(list(dest.iterdir())),1)
+            self.assertEqual((dest/metadata['files'][0]).read_bytes(),output.read_bytes())
 if __name__=='__main__':unittest.main()

@@ -1,5 +1,5 @@
 """Sign built native assets with the existing protected Actions key; no publication."""
-import json,pathlib,platform,subprocess,sys
+import json,pathlib,platform,subprocess,sys,shutil
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 version=json.loads((ROOT/'package.json').read_text(encoding='utf-8'))['version']
 if sys.platform=='darwin':
@@ -10,6 +10,8 @@ else:
 for relative,channel in jobs:
     file=ROOT/relative
     if not file.is_file():raise SystemExit('Missing update package: '+relative)
+    local=ROOT/'artifacts'/file.name
+    if local!=file:shutil.copy2(file,local)
     url=f'https://github.com/Drugod/magnetron/releases/download/v{version}/{file.name}'
     subprocess.run(['node',str(ROOT/'scripts/sign-update.mjs'),'sign-env',str(file),version,url,str(ROOT/f'artifacts/{channel}-update.json')],check=True)
 print('Signed native manifests prepared; not published')

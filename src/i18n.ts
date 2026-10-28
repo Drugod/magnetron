@@ -25,6 +25,8 @@ let appearance: Appearance = ["light", "dark"].includes(
 export const getLanguage = () => language;
 export const locale = () => (language === "en" ? "en-GB" : "es-ES");
 const pairs: Record<string, string> = {
+  "Descargas BitTorrent, eD2k y YouTube": "BitTorrent, eD2k and YouTube downloads",
+  "YouTube: no se pudo completar la descarga. Comprueba la conexión e intenta reanudar.": "YouTube: download unavailable or interrupted. Check the connection and try resuming.",
   "Las actualizaciones se comprueban automáticamente.": "Updates are checked automatically.",
   "Calidad de YouTube": "YouTube quality",
   "Mejor disponible": "Best available",

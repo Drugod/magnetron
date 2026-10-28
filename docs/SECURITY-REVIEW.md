@@ -12,14 +12,14 @@ This is a maintainer code review and automated testing effort, not an independen
 
 ## Findings being addressed
 
-- REL-01: Unix Job attachment was a no-op, so killing the parent could leave engines alive. A private pipe-driven guard and isolated process groups are implemented. POSIX crash/group-isolation and Rust integration tests are pending native CI.
-- REL-02: v1/eD2k persistence used fixed temporary names; eD2k snapshots could race after releasing the record lock. Unique atomic temporary files, serialized snapshots and fsync are implemented. Concurrent-reader regression tests are pending Rust CI.
-- PRIV-01: engine configuration and queues could inherit permissive Unix umasks. Application-owned state directories now use 0700, and atomic private files use 0600. Download destinations are not chmodded. Permission and symlink-target tests are pending native CI.
-- REL-03: Jackett retained a cached connection after its process died; eD2k treated any stored child as running. Liveness checks and serialized reinitialisation are implemented; engine restart regression coverage is in progress.
+- REL-01: Unix Job attachment was a no-op, so killing the parent could leave engines alive. A private pipe-driven guard and isolated process groups are implemented. POSIX crash/group-isolation and Rust integration tests passed native CI at 1d47bd5.
+- REL-02: v1/eD2k persistence used fixed temporary names; eD2k snapshots could race after releasing the record lock. Unique atomic temporary files, serialized snapshots and fsync are implemented. Concurrent-reader regression tests passed on all four runners; Windows transient sharing failures use bounded atomic-rename retries.
+- PRIV-01: engine configuration and queues could inherit permissive Unix umasks. Application-owned state directories now use 0700, and atomic private files use 0600. Download destinations are not chmodded. Permission and symlink-target tests passed native CI.
+- REL-03: Jackett retained a cached connection after its process died; eD2k treated any stored child as running. Liveness checks and serialized reinitialisation are implemented; real engine crash/restart regression tests passed on all four runners.
 
 ## Dependency evidence
 
-The local npm audit on October 26, 2026 reported zero known vulnerabilities. This is a point-in-time advisory check and does not establish absence of vulnerabilities. Dependabot alerts are currently disabled on the repository; no account scopes/settings were changed. A scheduled read-only security workflow adds npm and RustSec checks. Rust advisory results are pending its first CI run.
+The local npm audit on October 26, 2026 reported zero known vulnerabilities. This is a point-in-time advisory check and does not establish absence of vulnerabilities. Dependabot alerts are currently disabled on the repository; no account scopes/settings were changed. A scheduled read-only security workflow adds npm and RustSec checks. Rust advisory checks passed with the narrowly scoped, integrity-checked GLib backport exception described below.
 
 ## Remaining acceptance work
 
@@ -31,4 +31,25 @@ The first RustSec run reported RUSTSEC-2026-0293 (ringbuf) and RUSTSEC-2026-0367
 
 Security workflow run 40415928690 passed at commit 8fd5127. Informational unmaintained-package notices remain visible and tracked: fxhash, proc-macro-error, zbus_names, zvariant and zvariant_derive. They are upstream dependency-maintenance risks, not proof of exploitation; they are not silently suppressed. Known vulnerabilities and unpatched unsoundness fail the gate. Subsequent dependency changes must rerun the same checks.
 
-The first real-browser WCAG scan found insufficient contrast in light-theme muted text and accent buttons; the palette and accent foregrounds are corrected. The scan checks both languages, themes and main views, and honours reduced-motion so it measures settled colours. Verification of those changes remains pending the next accessibility run.
+The first real-browser WCAG scan found insufficient contrast in light-theme muted text and accent buttons; the palette and accent foregrounds are corrected. The scan checks both languages, themes and main views, and honours reduced-motion so it measures settled colours. The browser scan passed both themes, both languages and all three main views (run 40621188349).
+
+## Verified reliability baseline (October 28, 2026)
+
+Commit `1d47bd5` passed Windows build/install/upgrade/package checks (40621188225), all native build/package/relocation checks (40621188201), security (40621188146) and accessibility (40621188349). Prolonged run 40621188478 passed on all four runners:
+
+| Runner | Elapsed seconds | Cycles | Completed scenarios |
+| --- | ---: | ---: | ---: |
+| Windows x64 | 1804.149 | 42 | 290 |
+| Linux x64 | 1810.563 | 41 | 321 |
+| macOS ARM64 | 1810.076 | 28 | 217 |
+| macOS Intel | 1814.666 | 28 | 217 |
+
+These are controlled transfers with real bundled engines, crash/restart and persistence checks. They do not establish public network availability or certify an absence of memory leaks.
+
+## New 0.9.0 boundaries requiring fresh acceptance
+
+YouTube accepts only canonical individual HTTPS video identities. Downloaded titles are text, never HTML or commands. Credentials, browser cookies, external plugins and remote EJS updates are not imported. Private pinned Python packages, Node and a local-file-only FFmpeg are included with their notices and corresponding FFmpeg source. FFmpeg source signature was verified against `FCF986EA15E6E293A5644F10B4322F04D67658D8`; its SHA-256 remains build-pinned. Final output uses exclusive creation and preserves pre-existing files.
+
+Native updates use the existing Ed25519 key. Both the app and detached installer verify the platform-specific official URL, version, size and digest. AppImage and Mac replacements preserve the previous installation until startup acknowledgement, restoring it on failure. Debian installation delegates privilege approval to polkit/dpkg; declining approval preserves the existing package. Desktop publisher certification (Apple Developer ID/Authenticode) is separate from update authenticity and is not configured.
+
+These new video and updater changes must pass the full matrix and installer checks before release. No production update has been published for them. Native GUI/polkit prompts and Apple Gatekeeper behaviour still need end-user feedback; they are not claimed as automated GUI validation.

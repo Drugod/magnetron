@@ -1,5 +1,5 @@
 """Single public YouTube video download; private pinned tools, JSON-only stdio."""
-import hashlib,json,os,pathlib,re,shutil,subprocess,sys,threading,time,urllib.parse
+import hashlib,json,os,pathlib,re,shutil,subprocess,sys,threading,time,urllib.parse,unicodedata
 STOP=threading.Event()
 LOCK=threading.Lock()
 RATE=0
@@ -83,7 +83,9 @@ def main():
     uri,identifier=canonical(request['uri'])
     quality=int(request.get('quality',1080))
     if quality not in (0,360,480,720,1080,1440,2160):raise ValueError('Invalid video quality')
-    folder=pathlib.Path(request['folder']).resolve(strict=True)
+    selected=pathlib.Path(request['folder'])
+    folder=selected.resolve(strict=True)
+    if selected!=folder:raise ValueError('The download directory changed')
     stage=pathlib.Path(request['staging']).resolve(strict=True)
     if not folder.is_dir() or not stage.is_dir():raise ValueError('Invalid download directory')
     runtime=pathlib.Path(__file__).resolve().parent
@@ -131,7 +133,8 @@ def main():
     streams=json.loads(result.stdout)['streams']
     if not any(s.get('codec_type')=='video' for s in streams):raise ValueError('The downloaded file has no video stream')
     title=str(info.get('title') or 'YouTube')
-    safe=re.sub(r'[<>:"/\\|?*\x00-\x1f\x7f]','_',title).strip(' .')[:100] or 'YouTube'
+    title=''.join(c for c in title if unicodedata.category(c) not in ('Cc','Cf','Cs'))
+    safe=re.sub(r'[<>:"/\\|?*\x00-\x1f\x7f]','_',title).strip(' .').encode('utf-8')[:180].decode('utf-8','ignore').rstrip(' .') or 'YouTube'
     name=f'{safe} [{identifier}]{source.suffix}'
     emit('metadata',name=name,files=[name],total=source.stat().st_size)
     publish(source,folder/name,identifier)
@@ -141,5 +144,5 @@ if __name__=='__main__':
     try:main()
     except BaseException as error:
         # Do not expose signed media URLs, cookies, query parameters or remote HTML.
-        emit('error',error='YouTube: download unavailable or interrupted. Check the connection and try resuming.')
+        emit('error',error='YouTube: no se pudo completar la descarga. Comprueba la conexión e intenta reanudar.')
         sys.exit(1)

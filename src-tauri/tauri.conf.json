@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "MAGNETRON",
-  "version": "0.8.1",
+  "version": "0.9.0",
   "identifier": "local.magnetforge.desktop",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -26,20 +26,27 @@
   "plugins": {
     "deep-link": {
       "desktop": {
-        "schemes": ["ed2k", "magnet"]
+        "schemes": [
+          "ed2k",
+          "magnet"
+        ]
       }
     }
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis"],
+    "targets": [
+      "nsis"
+    ],
     "shortDescription": "Unified BitTorrent and eD2k search and downloads",
     "license": "GPL-3.0-only",
     "category": "Utility",
     "windows": {
       "nsis": {
         "displayLanguageSelector": false,
-        "languages": ["Spanish"]
+        "languages": [
+          "Spanish"
+        ]
       }
     },
     "resources": {
