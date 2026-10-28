@@ -1,0 +1,31 @@
+name: Accessibility checks
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: accessibility-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  interface:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm test
+      - run: npm run build
+      - run: node scripts/test-accessibility.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: MAGNETRON-accessibility
+          path: artifacts/accessibility/
+          if-no-files-found: ignore

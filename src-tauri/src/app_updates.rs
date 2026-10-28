@@ -23,14 +23,52 @@ pub struct Status {
     ready: bool,
     version: Option<String>,
 }
+fn platform() -> &'static str {
+    if cfg!(target_os = "macos") {
+        if cfg!(target_arch = "aarch64") {
+            "macos-arm64"
+        } else {
+            "macos-x64"
+        }
+    } else if cfg!(target_os = "linux") {
+        if std::env::var_os("APPIMAGE").is_some() {
+            "linux-appimage"
+        } else {
+            "linux-deb"
+        }
+    } else {
+        "windows"
+    }
+}
+fn official_url(version: &str) -> String {
+    let suffix = match platform() {
+        "linux-appimage" => "amd64.AppImage",
+        "linux-deb" => "amd64.deb",
+        "macos-arm64" => "macos-arm64.app.zip",
+        "macos-x64" => "macos-x64.app.zip",
+        _ => "x64-setup.exe",
+    };
+    format!("https://github.com/Drugod/magnetron/releases/download/v{version}/MAGNETRON_{version}_{suffix}")
+}
 fn channel() -> Option<(&'static str, &'static str)> {
-    if !cfg!(all(windows, target_arch = "x86_64")) {
+    if !(cfg!(all(windows, target_arch = "x86_64"))
+        || cfg!(all(target_os = "linux", target_arch = "x86_64"))
+        || cfg!(all(
+            target_os = "macos",
+            any(target_arch = "x86_64", target_arch = "aarch64")
+        )))
+    {
         return None;
     }
-    Some((
-        "https://github.com/Drugod/magnetron/releases/latest/download/windows-update.json",
-        include_str!("../update-public-key.txt").trim(),
-    ))
+    let url = match platform() {
+        "linux-appimage" => "https://github.com/Drugod/magnetron/releases/latest/download/linux-appimage-update.json",
+        "linux-deb" => "https://github.com/Drugod/magnetron/releases/latest/download/linux-deb-update.json",
+        "macos-arm64" => "https://github.com/Drugod/magnetron/releases/latest/download/macos-arm64-update.json",
+        "macos-x64" => "https://github.com/Drugod/magnetron/releases/latest/download/macos-x64-update.json",
+        _ if cfg!(all(windows, target_arch = "x86_64")) => "https://github.com/Drugod/magnetron/releases/latest/download/windows-update.json",
+        _ => return None,
+    };
+    Some((url, include_str!("../update-public-key.txt").trim()))
 }
 fn version(s: &str) -> Result<Vec<u32>, String> {
     if s.len() > 32
@@ -73,12 +111,9 @@ fn verify(bytes: &[u8], public: &str) -> Result<Release, String> {
     let release: Release = serde_json::from_str(&envelope.payload).map_err(|e| e.to_string())?;
     version(&release.version)?;
     https(&release.url)?;
-    let expected = format!(
-        "https://github.com/Drugod/magnetron/releases/download/v{0}/MAGNETRON_{0}_x64-setup.exe",
-        release.version
-    );
+    let expected = official_url(&release.version);
     if release.url != expected {
-        return Err("El instalador no pertenece al canal oficial de Windows".into());
+        return Err("El paquete no pertenece al canal oficial de este sistema".into());
     }
     if release.size == 0
         || release.size > 512 * 1024 * 1024
@@ -165,7 +200,7 @@ pub async fn check_app_update(app: tauri::AppHandle) -> Result<Status, String> {
         });
     };
     let root = root(&app)?;
-    std::fs::create_dir_all(&root).map_err(|e| e.to_string())?;
+    crate::secure_fs::private_dir(&root)?;
     let client = reqwest::Client::builder()
         .https_only(true)
         .connect_timeout(std::time::Duration::from_secs(15))
@@ -194,10 +229,8 @@ pub async fn check_app_update(app: tauri::AppHandle) -> Result<Status, String> {
         {
             return Err("El instalador no coincide con la firma".into());
         }
-        std::fs::write(root.join("installer.new"), bytes).map_err(|e| e.to_string())?;
-        std::fs::rename(root.join("installer.new"), root.join("installer.exe"))
-            .map_err(|e| e.to_string())?;
-        std::fs::write(root.join("manifest.json"), manifest).map_err(|e| e.to_string())?;
+        crate::secure_fs::atomic_private(&root.join("installer.exe"), &bytes)?;
+        crate::secure_fs::atomic_private(&root.join("manifest.json"), &manifest)?;
     }
     let status = Status {
         configured: true,
@@ -219,10 +252,162 @@ pub async fn install_app_update(app: tauri::AppHandle) -> Result<(), String> {
 pub fn configured() -> bool {
     channel().is_some()
 }
+#[cfg(unix)]
+fn prepare_native_helper(runtime: &Path, root: &Path) -> Result<(PathBuf, PathBuf), String> {
+    use std::os::unix::fs::PermissionsExt;
+    let source = runtime.join("video-tools/node");
+    if !source.is_file() {
+        return Err("Falta el instalador integrado de actualizaciones".into());
+    }
+    crate::secure_fs::private_dir(root)?;
+    // AppImage unmounts its resources after exit. The detached installer must
+    // run from private persistent storage, not from that disappearing mount.
+    let node = root.join("installer-node");
+    crate::secure_fs::atomic_private(&node, &std::fs::read(source).map_err(|e| e.to_string())?)?;
+    std::fs::set_permissions(&node, std::fs::Permissions::from_mode(0o700))
+        .map_err(|e| e.to_string())?;
+    let helper = root.join("native_update.mjs");
+    crate::secure_fs::atomic_private(
+        &helper,
+        &std::fs::read(runtime.join("native_update.mjs")).map_err(|e| e.to_string())?,
+    )?;
+    Ok((node, helper))
+}
+#[cfg(unix)]
+pub fn launch_native(app: &tauri::AppHandle, installer: &Path) -> Result<(), String> {
+    let root = root(app)?;
+    if installer != root.join("installer.exe") {
+        return Err("Ruta de actualización inválida".into());
+    }
+    staged(&root, include_str!("../update-public-key.txt").trim())?;
+    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    let target = if cfg!(target_os = "macos") {
+        exe.ancestors()
+            .find(|p| p.file_name().is_some_and(|n| n == "MAGNETRON.app"))
+            .ok_or("Instala MAGNETRON en Aplicaciones antes de actualizar")?
+            .to_path_buf()
+    } else if platform() == "linux-appimage" {
+        let image = PathBuf::from(std::env::var_os("APPIMAGE").ok_or("Falta la ruta AppImage")?);
+        let appdir = PathBuf::from(std::env::var_os("APPDIR").ok_or("Falta el montaje AppImage")?);
+        if !exe.starts_with(appdir)
+            || !image.is_absolute()
+            || image.extension().is_none_or(|e| e != "AppImage")
+        {
+            return Err("La ejecución no pertenece a una AppImage válida".into());
+        }
+        image
+    } else {
+        if !Path::new("/usr/bin/pkexec").is_file() || !Path::new("/usr/bin/dpkg").is_file() {
+            return Err(
+                "Este sistema necesita PackageKit/polkit para instalar el paquete Debian".into(),
+            );
+        }
+        exe.clone()
+    };
+    if platform() != "linux-deb" {
+        let parent = target
+            .parent()
+            .ok_or("La ubicación instalada no es válida")?;
+        tempfile::NamedTempFile::new_in(parent)
+            .map_err(|_| "No se puede actualizar en esta ubicación. Mueve MAGNETRON a una carpeta con permisos de escritura")?;
+    }
+    let mut runtime = app
+        .path()
+        .resource_dir()
+        .map_err(|e| e.to_string())?
+        .join("v2");
+    #[cfg(debug_assertions)]
+    if !runtime.join("native_update.mjs").is_file() {
+        runtime = crate::platform::dev_runtime();
+    }
+    let (node, helper) = prepare_native_helper(&runtime, &root)?;
+    let request = serde_json::json!({"root":root,"platform":platform(),"target":target,"installed":env!("CARGO_PKG_VERSION"),"pid":std::process::id(),"publicKey":include_str!("../update-public-key.txt").trim()});
+    let request_file = root.join("install-request.json");
+    crate::secure_fs::atomic_private(
+        &request_file,
+        &serde_json::to_vec(&request).map_err(|e| e.to_string())?,
+    )?;
+    use std::os::unix::process::CommandExt;
+    std::process::Command::new(node)
+        .arg(helper)
+        .arg(request_file)
+        .env_remove("NODE_OPTIONS")
+        .env_remove("NODE_PATH")
+        .env_remove("LD_LIBRARY_PATH")
+        .env_remove("LD_PRELOAD")
+        .env_remove("DYLD_LIBRARY_PATH")
+        .env_remove("DYLD_INSERT_LIBRARIES")
+        .current_dir(&root)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .process_group(0)
+        .spawn()
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+pub fn take_install_notice(app: &tauri::AppHandle) -> Option<String> {
+    let file = root(app).ok()?.join("install-error.txt");
+    if !file.is_file() {
+        return None;
+    }
+    std::fs::remove_file(file).ok()?;
+    Some("No se pudo completar la actualización. Comprueba la instalación antes de volver a intentarlo.".into())
+}
+pub fn confirm_startup(app: &tauri::AppHandle) {
+    for arg in std::env::args().skip(1) {
+        if let Some(token) = arg.strip_prefix("--magnetron-update-health=") {
+            if token.len() == 32 && token.bytes().all(|b| b.is_ascii_hexdigit()) {
+                if let Ok(root) = root(app) {
+                    let _ = crate::secure_fs::atomic_private(
+                        &root.join(format!("health-{token}")),
+                        env!("CARGO_PKG_VERSION").as_bytes(),
+                    );
+                }
+            }
+        }
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;
     use ring::signature::KeyPair;
+    #[cfg(unix)]
+    #[test]
+    fn native_helper_survives_disappearing_original_runtime() {
+        let temporary = tempfile::tempdir().unwrap();
+        let original = temporary.path().join("mounted-runtime");
+        std::fs::create_dir_all(original.join("video-tools")).unwrap();
+        let runtime = crate::platform::dev_runtime();
+        std::fs::copy(
+            runtime.join("video-tools/node"),
+            original.join("video-tools/node"),
+        )
+        .unwrap();
+        std::fs::copy(
+            runtime.join("native_update.mjs"),
+            original.join("native_update.mjs"),
+        )
+        .unwrap();
+        let root = temporary.path().join("private-updates");
+        let (node, helper) = prepare_native_helper(&original, &root).unwrap();
+        std::fs::remove_dir_all(&original).unwrap();
+        let output = std::process::Command::new(node)
+            .arg("--eval")
+            .arg("process.stdout.write('detached-installer-ready')")
+            .env_remove("NODE_OPTIONS")
+            .env_remove("NODE_PATH")
+            .env_remove("LD_LIBRARY_PATH")
+            .env_remove("LD_PRELOAD")
+            .env_remove("DYLD_LIBRARY_PATH")
+            .env_remove("DYLD_INSERT_LIBRARIES")
+            .current_dir(&root)
+            .output()
+            .unwrap();
+        assert!(output.status.success());
+        assert_eq!(output.stdout, b"detached-installer-ready");
+        assert!(helper.is_file());
+    }
     #[test]
     fn rejects_tamper_and_rollback() {
         let rng = ring::rand::SystemRandom::new();
@@ -230,7 +415,7 @@ mod tests {
         let key = ring::signature::Ed25519KeyPair::from_pkcs8(key.as_ref()).unwrap();
         let payload = serde_json::to_string(&Release {
             version: "0.8.1".into(),
-            url: "https://github.com/Drugod/magnetron/releases/download/v0.8.1/MAGNETRON_0.8.1_x64-setup.exe".into(),
+            url: official_url("0.8.1"),
             sha256: "a".repeat(64),
             size: 123,
         })
@@ -256,8 +441,9 @@ mod tests {
         let installer = b"synthetic installer fixture";
         let mut release = Release {
             version: "999.0.0".into(),
-            url: "https://github.com/Drugod/magnetron/releases/download/v999.0.0/MAGNETRON_999.0.0_x64-setup.exe".into(),
-            sha256: hex::encode(Sha256::digest(installer)), size: installer.len() as u64,
+            url: official_url("999.0.0"),
+            sha256: hex::encode(Sha256::digest(installer)),
+            size: installer.len() as u64,
         };
         let sign = |r: &Release| {
             let payload = serde_json::to_string(r).unwrap();
@@ -278,6 +464,37 @@ mod tests {
         for invalid in ["0.8", "0.8.1.2", "0.08.1", "0.8.-1", "0.8.+1"] {
             assert!(version(invalid).is_err());
         }
+    }
+    #[cfg(unix)]
+    #[test]
+    #[ignore = "Requires the signed native artifact from the reviewed release workflow"]
+    fn validates_real_signed_native_release_before_installation() {
+        let source = PathBuf::from(std::env::var("MAGNETRON_UPDATE_TEST_DIR").unwrap());
+        let manifest = std::fs::read(source.join(format!("{}-update.json", platform()))).unwrap();
+        let key = include_str!("../update-public-key.txt").trim();
+        let release = verify(&manifest, key).unwrap();
+        let filename = release.url.rsplit('/').next().unwrap();
+        let temporary = tempfile::tempdir().unwrap();
+        std::fs::copy(
+            source.join(filename),
+            temporary.path().join("installer.exe"),
+        )
+        .unwrap();
+        std::fs::write(temporary.path().join("manifest.json"), manifest).unwrap();
+        assert!(validate_staged(temporary.path(), key, "0.8.1").is_ok());
+        assert!(validate_staged(temporary.path(), key, &release.version).is_err());
+        use std::io::{Read, Seek, SeekFrom, Write};
+        let mut file = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(temporary.path().join("installer.exe"))
+            .unwrap();
+        let mut byte = [0];
+        file.read_exact(&mut byte).unwrap();
+        file.seek(SeekFrom::Start(0)).unwrap();
+        file.write_all(&[byte[0] ^ 1]).unwrap();
+        drop(file);
+        assert!(validate_staged(temporary.path(), key, "0.8.1").is_err());
     }
     #[cfg(windows)]
     #[test]

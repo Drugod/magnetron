@@ -96,6 +96,7 @@ def main():
     site=native/'v2/lib/python3.13/site-packages'
     unzip(fetch(assets['wheel']),site)
     shutil.copy2(ROOT/'src-tauri/v2/worker.py',native/'v2/worker.py')
+    shutil.copy2(ROOT/'src-tauri/v2/engine_guard.py',native/'v2/engine_guard.py')
     shutil.copy2(ROOT/'docs/licenses/libtorrent-2.1.1-LICENSE.txt',native/'v2/LICENSE-libtorrent.txt')
     licenses=native/'licenses';licenses.mkdir()
     shutil.copy2(fetch(LOCK['sources']['amule']),licenses/'aMule-3.1.0-source.tar.gz')
@@ -117,5 +118,6 @@ def main():
     run(python,'-I','-c','import libtorrent,ssl; print(libtorrent.version)')
     daemon=native/('amule/aMule.app/Contents/MacOS/amuled' if system=='macos' else 'amule/bin/amuled')
     check_daemon_version(daemon)
+    run(sys.executable,ROOT/'scripts/prepare-video.py')
     print('Native engines prepared for '+key)
 if __name__=='__main__':main()

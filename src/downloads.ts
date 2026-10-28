@@ -58,7 +58,7 @@ export function setupDownloads(notify: (s: string) => void) {
     .querySelector(".workspace")!
     .insertAdjacentHTML(
       "beforeend",
-      `<main id="downloads-view" class="downloads-view" hidden><div class="downloads-heading"><h1>Descargas</h1><span id="downloads-summary" class="muted"></span></div><div class="downloads-table-wrap"><table class="downloads-table"><caption class="sr-only">Descargas BitTorrent y eD2k</caption><thead><tr><th scope="col">Nombre</th><th scope="col">Red</th><th scope="col">Tamaño</th><th scope="col">Progreso</th><th scope="col">Estado</th><th scope="col">↓ Bajada</th><th scope="col">↑ Subida</th><th scope="col">Tiempo restante</th><th scope="col">Acciones</th></tr></thead><tbody id="downloads-list"></tbody></table></div><p id="downloads-feedback" role="status"></p><p class="muted downloads-note">Los archivos se guardan en la carpeta elegida. Durante la descarga se intercambian piezas. Al completar se liberan los archivos; cancelar conserva los parciales.</p></main>`,
+      `<main id="downloads-view" class="downloads-view" hidden><div class="downloads-heading"><h1>Descargas</h1><span id="downloads-summary" class="muted"></span></div><div class="downloads-table-wrap"><table class="downloads-table"><caption class="sr-only">Descargas BitTorrent, eD2k y YouTube</caption><thead><tr><th scope="col">Nombre</th><th scope="col">Red</th><th scope="col">Tamaño</th><th scope="col">Progreso</th><th scope="col">Estado</th><th scope="col">↓ Bajada</th><th scope="col">↑ Subida</th><th scope="col">Tiempo restante</th><th scope="col">Acciones</th></tr></thead><tbody id="downloads-list"></tbody></table></div><p id="downloads-feedback" role="status"></p><p class="muted downloads-note">Los archivos se guardan en la carpeta elegida. Durante la descarga se intercambian piezas. Al completar se liberan los archivos; cancelar conserva los parciales.</p></main>`,
     );
   const panel = document.querySelector<HTMLElement>("#downloads-view")!,
     body = document.querySelector<HTMLTableSectionElement>("#downloads-list")!,
@@ -225,7 +225,7 @@ export function setupDownloads(notify: (s: string) => void) {
           }
         };
         c[0].title = d.folder;
-        c[1].textContent = d.id.startsWith("ed2k:")
+        c[1].textContent = d.id.startsWith("youtube:") ? "YouTube" : d.id.startsWith("ed2k:")
           ? "eD2k"
           : d.id.startsWith("bt2:")
             ? "BitTorrent v2"

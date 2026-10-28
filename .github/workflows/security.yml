@@ -1,0 +1,47 @@
+name: Security checks
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: '23 6 * * 1'
+permissions:
+  contents: read
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  dependencies:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+      - run: npm audit --audit-level=moderate
+      - run: python3 scripts/audit-video-dependencies.py
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: security-auditor
+      - run: cargo install cargo-audit --locked --version 0.22.2
+      - run: python3 scripts/check-vendor-patches.py
+      # GTK3 requires glib 0.18. The exact upstream fix is vendored and hash-checked
+      # above; its optimized runtime regression also gates native Linux CI.
+      # Maintenance notices remain visible; known vulnerabilities/unsoundness fail.
+      - run: cargo audit --file src-tauri/Cargo.lock --deny unsound --ignore RUSTSEC-2024-0429
+      - name: Check source signing-key boundary
+        run: |
+          if git grep -Il -E 'BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY' -- ':!scripts/*' ':!docs/*'; then
+            echo 'Private key marker found in tracked application files'
+            exit 1
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: MAGNETRON-video-advisories
+          path: artifacts/security/video-osv.json
+          if-no-files-found: ignore

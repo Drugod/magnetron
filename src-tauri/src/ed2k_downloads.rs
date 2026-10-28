@@ -2,14 +2,14 @@
 use crate::{
     downloads::Download,
     ec::{Client, Tag},
-    engine::Job,
+    engine::OwnedProcess,
 };
 use md5::{Digest, Md5};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::BTreeMap,
     path::{Path, PathBuf},
-    process::{Child, Command, Stdio},
+    process::{Command, Stdio},
     sync::{Arc, Mutex},
     time::Duration,
 };
@@ -21,8 +21,7 @@ struct Store {
     records: BTreeMap<String, Download>,
 }
 struct Running {
-    child: Child,
-    _job: Job,
+    child: OwnedProcess,
     client: Client,
 }
 impl Running {
@@ -41,8 +40,10 @@ impl Running {
 }
 pub struct Downloads {
     executable: PathBuf,
+    runtime: PathBuf,
     data: PathBuf,
     store: Mutex<Store>,
+    save_lock: Mutex<()>,
     running: AsyncMutex<Option<Running>>,
     control: AsyncMutex<()>,
     monitor: Mutex<Option<tokio::task::JoinHandle<()>>>,
@@ -179,14 +180,16 @@ fn print_startup_summary(data: &Path) {
 }
 impl Downloads {
     pub fn new(executable: PathBuf, data: PathBuf) -> Result<Arc<Self>, String> {
-        std::fs::create_dir_all(&data).map_err(|e| e.to_string())?;
+        Self::new_with_runtime(executable, data, crate::platform::dev_runtime())
+    }
+    pub fn new_with_runtime(
+        executable: PathBuf,
+        data: PathBuf,
+        runtime: PathBuf,
+    ) -> Result<Arc<Self>, String> {
+        crate::secure_fs::private_dir(&data)?;
         let file = data.join("downloads.json");
-        let mut store: Store = if file.exists() {
-            serde_json::from_slice(&std::fs::read(file).map_err(|e| e.to_string())?)
-                .map_err(|e| e.to_string())?
-        } else {
-            Store::default()
-        };
+        let mut store: Store = crate::secure_fs::load_queue(&file, "eD2k")?;
         for r in store.records.values_mut() {
             if !matches!(r.state.as_str(), "completed" | "cancelled") {
                 r.state = "paused".into()
@@ -196,8 +199,10 @@ impl Downloads {
         }
         Ok(Arc::new(Self {
             executable,
+            runtime,
             data,
             store: Mutex::new(store),
+            save_lock: Mutex::new(()),
             running: AsyncMutex::new(None),
             control: AsyncMutex::new(()),
             monitor: Mutex::new(None),
@@ -209,10 +214,9 @@ impl Downloads {
         }))
     }
     fn save(&self) -> Result<(), String> {
+        let _guard = self.save_lock.lock().map_err(|e| e.to_string())?;
         let data = serde_json::to_vec(&*self.store.lock().unwrap()).map_err(|e| e.to_string())?;
-        let tmp = self.data.join("downloads.json.tmp");
-        std::fs::write(&tmp, data).map_err(|e| e.to_string())?;
-        std::fs::rename(tmp, self.data.join("downloads.json")).map_err(|e| e.to_string())
+        crate::secure_fs::atomic_queue(&self.data.join("downloads.json"), &data)
     }
     pub fn list(&self) -> Vec<Download> {
         self.store
@@ -331,9 +335,12 @@ impl Downloads {
     }
     async fn start(&self) -> Result<(), String> {
         let mut running = self.running.lock().await;
-        if running.is_some() {
-            return Ok(());
+        if let Some(engine) = running.as_mut() {
+            if matches!(engine.child.try_wait(), Ok(None)) {
+                return Ok(());
+            }
         }
+        running.take();
         if !self.executable.is_file() {
             return Err("Falta el motor eD2k incluido con MAGNETRON".into());
         }
@@ -349,21 +356,18 @@ impl Downloads {
         }
         let parts = safe_dir(&root.join("parts"))?;
         let incoming = safe_dir(&root.join("incoming"))?;
-        let port = std::net::TcpListener::bind("127.0.0.1:0")
-            .map_err(|e| e.to_string())?
+        // Keep reservations alive together: dropping each immediately allows the
+        // OS to choose the same TCP port for control and peer traffic.
+        let control_socket =
+            std::net::TcpListener::bind("127.0.0.1:0").map_err(|e| e.to_string())?;
+        let peer_socket = std::net::TcpListener::bind("0.0.0.0:0").map_err(|e| e.to_string())?;
+        let udp_socket = std::net::UdpSocket::bind("0.0.0.0:0").map_err(|e| e.to_string())?;
+        let port = control_socket
             .local_addr()
-            .unwrap()
-            .port();
-        let peer_port = std::net::TcpListener::bind("0.0.0.0:0")
             .map_err(|e| e.to_string())?
-            .local_addr()
-            .unwrap()
             .port();
-        let udp_port = std::net::UdpSocket::bind("0.0.0.0:0")
-            .map_err(|e| e.to_string())?
-            .local_addr()
-            .unwrap()
-            .port();
+        let peer_port = peer_socket.local_addr().map_err(|e| e.to_string())?.port();
+        let udp_port = udp_socket.local_addr().map_err(|e| e.to_string())?.port();
         let pass = hex::encode(Md5::digest(rand::random::<[u8; 32]>()));
         let (down, up) = *self.limits.lock().unwrap();
         // Only engine-owned directories are shared. Completed files are moved out.
@@ -383,7 +387,7 @@ impl Downloads {
             "MaxUpload=100",
             &format!("MaxUpload={up}\nMaxDownload={down}"),
         );
-        std::fs::write(self.data.join("amule.conf"), config).map_err(|e| e.to_string())?;
+        crate::secure_fs::atomic_private(&self.data.join("amule.conf"), config.as_bytes())?;
         // Never reload stale shares before the current explicit selection is applied.
         for file in [
             "shareddir.dat",
@@ -421,19 +425,8 @@ impl Downloads {
             use std::os::windows::process::CommandExt;
             command.creation_flags(0x08000000);
         }
-        let mut child = command
-            .spawn()
-            .map_err(|e| format!("No se pudo iniciar eD2k: {e}"))?;
-        #[cfg(windows)]
-        let job = match Job::attach(&child) {
-            Ok(j) => j,
-            Err(e) => {
-                let _ = child.kill();
-                return Err(e);
-            }
-        };
-        #[cfg(not(windows))]
-        let job = Job;
+        drop((control_socket, peer_socket, udp_socket));
+        let mut child = OwnedProcess::spawn(&mut command, &self.runtime)?;
         let mut connection = None;
         let mut last_error = String::new();
         for _ in 0..80 {
@@ -515,11 +508,7 @@ impl Downloads {
         if reply.iter().any(|t| t.id == 0x2002) {
             return Err("aMule ha rechazado una carpeta compartida".into());
         }
-        *running = Some(Running {
-            child,
-            _job: job,
-            client,
-        });
+        *running = Some(Running { child, client });
         Ok(())
     }
     fn watch(self: &Arc<Self>) {
@@ -675,6 +664,19 @@ impl Downloads {
         {
             let mut running = self.running.lock().await;
             let c = &mut running.as_mut().unwrap().client;
+            if action == "resume" {
+                let (_, queue) = c.request(0x0d, vec![]).await?;
+                let present = queue
+                    .iter()
+                    .filter(|row| row.id == 0x300)
+                    .any(|row| row.get(0x31e).is_some_and(|h| hex::encode(&h.data) == hash));
+                if !present {
+                    // A crash can precede aMule's own .part.met checkpoint.
+                    // Recreate only the explicitly resumed, previously validated link.
+                    let safe = crate::ed2k::validate_link(&old.uri)?;
+                    c.request(9, vec![Tag::string(0, &safe)]).await?;
+                }
+            }
             c.request(
                 match action {
                     "pause" => 0x19,
@@ -1158,6 +1160,39 @@ mod tests {
         assert!(result.is_ok(), "{result:?}");
     }
 
+    fn print_synthetic_log(data: &Path) {
+        // Only called for freshly created controlled CI profiles, never user
+        // profiles. Drop credential lines and redact long hexadecimal values.
+        let Ok(file) = std::fs::File::open(data.join("logfile")) else {
+            return;
+        };
+        use std::io::Read;
+        let mut bytes = Vec::new();
+        let _ = file.take(65536).read_to_end(&mut bytes);
+        let text = String::from_utf8_lossy(&bytes);
+        let lines: Vec<_> = text.lines().collect();
+        for line in lines.iter().skip(lines.len().saturating_sub(45)) {
+            let lower = line.to_lowercase();
+            if ["password", "auth", "secret", "token", "key"]
+                .iter()
+                .any(|p| lower.contains(p))
+            {
+                continue;
+            }
+            let safe = line
+                .split_whitespace()
+                .map(|word| {
+                    if word.bytes().filter(u8::is_ascii_hexdigit).count() >= 24 {
+                        "<hex-redacted>"
+                    } else {
+                        word
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join(" ");
+            eprintln!("Synthetic eD2k log: {safe}");
+        }
+    }
     async fn test_server(
         ip: std::net::Ipv4Addr,
         source: Arc<Mutex<Option<(Vec<u8>, u16)>>>,
@@ -1166,17 +1201,25 @@ mod tests {
         let listener = tokio::net::TcpListener::bind((ip, 0)).await.unwrap();
         let port = listener.local_addr().unwrap().port();
         let job = tokio::spawn(async move {
-            let mut client_id = 0x281e140au32;
             loop {
                 let Ok((mut socket, _)) = listener.accept().await else {
                     break;
                 };
-                client_id += 0x01000000;
-                let id = client_id;
+                // A high eD2k ID is the actual IPv4 address in wire order;
+                // invented per-client IPs break peer identity/secure handshakes.
+                let id = u32::from_le_bytes(ip.octets());
+                eprintln!(
+                    "Controlled eD2k server: assigned_high_id={}",
+                    id >= 0x01000000
+                );
                 let source = source.clone();
                 tokio::spawn(async move {
                     loop {
-                        if socket.read_u8().await.ok() != Some(0xe3) {
+                        let Ok(protocol) = socket.read_u8().await else {
+                            break;
+                        };
+                        if protocol != 0xe3 {
+                            eprintln!("Controlled eD2k server: unsupported protocol={protocol}");
                             break;
                         }
                         let Ok(len) = socket.read_u32_le().await else {
@@ -1193,7 +1236,10 @@ mod tests {
                             1 => {
                                 let mut p = vec![0x40];
                                 p.extend_from_slice(&id.to_le_bytes());
-                                p.extend_from_slice(&0x119u32.to_le_bytes());
+                                // This fixture reads plain eD2k frames only. Do not
+                                // advertise compression (bit 0), or aMule may pack
+                                // its file publication and get disconnected here.
+                                p.extend_from_slice(&0x118u32.to_le_bytes());
                                 Some(p)
                             }
                             0x19 | 0x23 => {
@@ -1212,6 +1258,12 @@ mod tests {
                             }
                             _ => None,
                         };
+                        // Synthetic fixture traffic only: never print payloads or credentials.
+                        eprintln!(
+                            "Controlled eD2k server: opcode={} response={}",
+                            payload[0],
+                            response.is_some()
+                        );
                         if let Some(response) = response {
                             if socket.write_u8(0xe3).await.is_err()
                                 || socket.write_u32_le(response.len() as u32).await.is_err()
@@ -1296,6 +1348,24 @@ mod tests {
             engine.list()[0].state.as_str(),
             "waiting" | "downloading"
         ));
+        let previous = {
+            let _operation = engine.control.lock().await;
+            let mut slot = engine.running.lock().await;
+            let running = slot.as_mut().unwrap();
+            let pid = running.child.id();
+            running.child.kill().unwrap();
+            running.child.wait().unwrap();
+            pid
+        };
+        engine.action(&id, "resume").await.unwrap();
+        {
+            let _operation = engine.control.lock().await;
+            assert_ne!(
+                engine.running.lock().await.as_ref().unwrap().child.id(),
+                previous
+            );
+        }
+        engine.update().await.unwrap();
         engine.shutdown().await;
         drop(engine);
         let restored = Downloads::new(exe, root.join("config")).unwrap();
@@ -1413,6 +1483,27 @@ mod tests {
                 .client
                 .request(0x4a, vec![])
                 .await?;
+            // The controlled server already knows the source. Readiness is the
+            // authenticated connection, not aMule's periodic file-publication timer.
+            tokio::time::timeout(Duration::from_secs(30), async {
+                loop {
+                    let (_, tags) = seed
+                        .running
+                        .lock()
+                        .await
+                        .as_mut()
+                        .unwrap()
+                        .client
+                        .request(0x0b, vec![])
+                        .await?;
+                    if tags.iter().any(|t| t.id == 5 && t.num() & 1 != 0) {
+                        return Ok::<(), String>(());
+                    }
+                    tokio::time::sleep(Duration::from_millis(100)).await;
+                }
+            })
+            .await
+            .map_err(|_| "Controlled seed did not connect")??;
             let uri = crate::ed2k::link("MAGNETRON-test.bin", payload.len() as u64, &hash);
             let id = client
                 .add(uri.clone(), "MAGNETRON-test.bin".into(), root.clone())
@@ -1459,6 +1550,18 @@ mod tests {
             .map_err(|_| "Timed out downloading from the controlled eD2k seed".to_string())?
         }
         .await;
+        if result.is_err() {
+            for row in client.list() {
+                eprintln!(
+                    "Controlled eD2k transfer: state={} completed={} total={} speed={}",
+                    row.state, row.completed_bytes, row.total_bytes, row.download_speed
+                );
+            }
+            print_startup_summary(&root.join("client-config"));
+            print_startup_summary(&root.join("seed-config"));
+            print_synthetic_log(&root.join("seed-config"));
+            print_synthetic_log(&root.join("client-config"));
+        }
         client.shutdown().await;
         seed.shutdown().await;
         server_job.abort();

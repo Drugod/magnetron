@@ -4,8 +4,8 @@ import crypto from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 export function signUpdate(key, file, version, url, publicHex) {
   if (!/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(version)) throw Error('Invalid version');
-  const expected = `https://github.com/Drugod/magnetron/releases/download/v${version}/MAGNETRON_${version}_x64-setup.exe`;
-  if (url !== expected) throw Error('Installer URL must belong to the official versioned Windows release');
+  const names = [`MAGNETRON_${version}_x64-setup.exe`, `MAGNETRON_${version}_amd64.AppImage`, `MAGNETRON_${version}_amd64.deb`, `MAGNETRON_${version}_macos-x64.app.zip`, `MAGNETRON_${version}_macos-arm64.app.zip`];
+  if (!names.some(name => url === `https://github.com/Drugod/magnetron/releases/download/v${version}/${name}`)) throw Error('Package URL must belong to an official versioned platform release');
   const privateKey = crypto.createPrivateKey(key);
   if (privateKey.asymmetricKeyType !== 'ed25519') throw Error('Expected Ed25519 key');
   const publicKey = crypto.createPublicKey(privateKey);

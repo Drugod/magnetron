@@ -25,6 +25,7 @@ export interface Settings {
   kad: boolean;
   auto_sources: boolean;
   download_folder: string;
+  video_quality: number;
   download_limit_kib: number;
   upload_limit_kib: number;
   history: boolean;
@@ -62,6 +63,7 @@ export const defaults: Settings = {
   kad: true,
   auto_sources: true,
   download_folder: "",
+  video_quality: 1080,
   download_limit_kib: 0,
   upload_limit_kib: 0,
   history: false,

@@ -25,6 +25,35 @@ let appearance: Appearance = ["light", "dark"].includes(
 export const getLanguage = () => language;
 export const locale = () => (language === "en" ? "en-GB" : "es-ES");
 const pairs: Record<string, string> = {
+  "No se pudo completar la actualización. Comprueba la instalación antes de volver a intentarlo.": "The update could not be completed. Check the installation before trying again.",
+  "No se puede actualizar en esta ubicación. Mueve MAGNETRON a una carpeta con permisos de escritura": "This location cannot be updated. Move MAGNETRON to a writable folder",
+  "Instala MAGNETRON en Aplicaciones antes de actualizar": "Install MAGNETRON in Applications before updating",
+  "Este sistema necesita PackageKit/polkit para instalar el paquete Debian": "This system requires polkit to install the Debian package",
+  "Falta el instalador integrado de actualizaciones": "The bundled update installer is missing",
+
+  "Descargas BitTorrent, eD2k y YouTube": "BitTorrent, eD2k and YouTube downloads",
+  "YouTube: no se pudo completar la descarga. Comprueba la conexión e intenta reanudar.": "YouTube: download unavailable or interrupted. Check the connection and try resuming.",
+  "Las actualizaciones se comprueban automáticamente.": "Updates are checked automatically.",
+  "Calidad de YouTube": "YouTube quality",
+  "Mejor disponible": "Best available",
+  "Se descargará hasta la calidad elegida, según lo disponible en el vídeo.": "Downloads up to the selected quality, depending on what the video offers.",
+  "Pega enlaces eD2k, magnet o YouTube, uno por línea": "Paste eD2k, magnet or YouTube links, one per line",
+  "YouTube: se ha recuperado la última copia válida de la cola. Los archivos descargados se conservan.": "YouTube: the last valid queue checkpoint was recovered. Downloaded files are preserved.",
+  "YouTube: no se pudo recuperar la cola. Se ha conservado una copia de los datos dañados y no se han borrado archivos descargados.": "YouTube: the queue could not be recovered. A copy of the damaged data was preserved and downloaded files were not deleted.",
+  Entendido: "Understood",
+  "BitTorrent: se ha recuperado la última copia válida de la cola. Los archivos descargados se conservan.":
+    "BitTorrent: the last valid queue checkpoint was recovered. Downloaded files are preserved.",
+  "BitTorrent: no se pudo recuperar la cola. Se ha conservado una copia de los datos dañados y no se han borrado archivos descargados.":
+    "BitTorrent: the queue could not be recovered. A copy of the damaged data was preserved and downloaded files were not deleted.",
+  "BitTorrent v2: se ha recuperado la última copia válida de la cola. Los archivos descargados se conservan.":
+    "BitTorrent v2: the last valid queue checkpoint was recovered. Downloaded files are preserved.",
+  "BitTorrent v2: no se pudo recuperar la cola. Se ha conservado una copia de los datos dañados y no se han borrado archivos descargados.":
+    "BitTorrent v2: the queue could not be recovered. A copy of the damaged data was preserved and downloaded files were not deleted.",
+  "eD2k: se ha recuperado la última copia válida de la cola. Los archivos descargados se conservan.":
+    "eD2k: the last valid queue checkpoint was recovered. Downloaded files are preserved.",
+  "eD2k: no se pudo recuperar la cola. Se ha conservado una copia de los datos dañados y no se han borrado archivos descargados.":
+    "eD2k: the queue could not be recovered. A copy of the damaged data was preserved and downloaded files were not deleted.",
+
   "Preferencias rápidas": "Quick preferences",
   "Las actualizaciones se comprueban automáticamente en Windows.":
     "Updates are checked automatically on Windows.",

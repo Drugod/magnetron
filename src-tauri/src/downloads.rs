@@ -68,7 +68,7 @@ mod tests {
         let root = sandbox();
         let seed_dir = root.join("seed");
         std::fs::create_dir(&seed_dir).unwrap();
-        let payload: Vec<u8> = (0..262144).map(|i| (i % 251) as u8).collect();
+        let payload: Vec<u8> = (0..4194304).map(|i| (i % 251) as u8).collect();
         std::fs::write(seed_dir.join("proof.bin"), &payload).unwrap();
         let hashes: Vec<u8> = payload
             .chunks(16384)
@@ -117,7 +117,26 @@ mod tests {
         seed_torrent.wait_until_initialized().await.unwrap();
         assert!(seed_torrent.stats().finished);
         let addr = seed.listen_addr().unwrap();
-        let port = addr.port();
+        let (network, online) = tokio::sync::watch::channel(true);
+        let proxy = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = proxy.local_addr().unwrap().port();
+        let proxy_task = tokio::spawn(async move {
+            loop {
+                let (mut downstream, _) = proxy.accept().await.unwrap();
+                let mut online = online.clone();
+                if !*online.borrow_and_update() {
+                    continue;
+                }
+                tokio::spawn(async move {
+                    if let Ok(mut upstream) = tokio::net::TcpStream::connect(addr).await {
+                        tokio::select! {
+                            _=tokio::io::copy_bidirectional(&mut downstream,&mut upstream)=>{},
+                            _=online.changed()=>{},
+                        }
+                    }
+                });
+            }
+        });
         let tracker = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let tracker_addr = tracker.local_addr().unwrap();
         let tracker_task = tokio::spawn(async move {
@@ -146,7 +165,7 @@ mod tests {
             dht: None,
             disable_local_service_discovery: true,
             ratelimits: librqbit::limits::LimitsConfig {
-                download_bps: std::num::NonZeroU32::new(65536),
+                download_bps: std::num::NonZeroU32::new(262144),
                 ..Default::default()
             },
             ..Default::default()
@@ -181,6 +200,9 @@ mod tests {
         })
         .await
         .expect("La transferencia local no empezó");
+        // Cut the peer connection while bytes are in flight, then pause/restart.
+        network.send(false).unwrap();
+        tokio::time::sleep(Duration::from_millis(400)).await;
         manager.action(&id, "pause").await.unwrap();
         let paused = manager.list().pop().unwrap();
         assert_eq!(paused.state, "paused");
@@ -201,6 +223,7 @@ mod tests {
             .await
             .unwrap();
         assert!(manager.session.set(session).is_ok());
+        network.send(true).unwrap();
         manager.action(&id, "resume").await.unwrap();
         tokio::time::timeout(Duration::from_secs(40), async {
             loop {
@@ -216,7 +239,7 @@ mod tests {
         .expect("La descarga local no se completó");
         assert_eq!(std::fs::read(&file).unwrap(), payload);
         assert_eq!(file, root.canonicalize().unwrap().join("proof.bin"));
-        assert_eq!(manager.list()[0].completed_bytes, 262144);
+        assert_eq!(manager.list()[0].completed_bytes, 4194304);
         assert!(manager.handle(&id).is_none());
         #[cfg(windows)]
         {
@@ -262,6 +285,7 @@ mod tests {
         manager.shutdown().await;
         seed.stop().await;
         tracker_task.abort();
+        proxy_task.abort();
     }
     #[test]
     fn deletion_only_removes_payload_and_empty_subdirectories() {
@@ -479,12 +503,8 @@ impl Downloads {
     pub fn new(dir: PathBuf) -> Result<Arc<Self>, String> {
         std::fs::create_dir_all(dir.join("metadata")).map_err(|e| e.to_string())?;
         let file = dir.join("downloads.json");
-        let mut records: BTreeMap<String, Download> = if file.exists() {
-            serde_json::from_slice(&std::fs::read(file).map_err(|e| e.to_string())?)
-                .map_err(|e| format!("No se pudo leer la lista de descargas: {e}"))?
-        } else {
-            BTreeMap::new()
-        };
+        let mut records: BTreeMap<String, Download> =
+            crate::secure_fs::load_queue(&file, "BitTorrent")?;
         for record in records.values_mut() {
             if !matches!(record.state.as_str(), "completed" | "cancelled") {
                 record.state = "paused".into();
@@ -503,13 +523,10 @@ impl Downloads {
     }
     fn save(&self) -> Result<(), String> {
         let records = self.records.lock().map_err(|e| e.to_string())?;
-        let temp = self.dir.join("downloads.json.tmp");
-        std::fs::write(
-            &temp,
-            serde_json::to_vec(&*records).map_err(|e| e.to_string())?,
+        crate::secure_fs::atomic_queue(
+            &self.dir.join("downloads.json"),
+            &serde_json::to_vec(&*records).map_err(|e| e.to_string())?,
         )
-        .map_err(|e| e.to_string())?;
-        std::fs::rename(temp, self.dir.join("downloads.json")).map_err(|e| e.to_string())
     }
     pub(crate) async fn session(&self) -> Result<&Arc<Session>, String> {
         self.session

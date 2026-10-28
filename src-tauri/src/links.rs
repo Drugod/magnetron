@@ -49,8 +49,14 @@ pub fn parse(text: &str) -> Result<Vec<Link>, String> {
                 .filter(|v| !v.is_empty())
                 .unwrap_or_else(|| "Torrent".into());
             Link { uri, name }
+        } else if line.starts_with("https://") {
+            let (_, uri) = crate::video::identity(line)?;
+            Link {
+                uri,
+                name: "YouTube".into(),
+            }
         } else {
-            return Err("Pega enlaces ed2k:// o magnet:, uno por línea".into());
+            return Err("Pega enlaces eD2k, magnet o YouTube, uno por línea".into());
         };
         if !links.iter().any(|old: &Link| old.uri == link.uri) {
             links.push(link)

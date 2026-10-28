@@ -28,3 +28,14 @@ if ($new.ExitCode -ne 0) { throw "Upgrade installer failed: $($new.ExitCode)" }
 Assert-Version $Version
 if ((Get-Content -LiteralPath $marker -Raw).Trim() -ne $token) { throw 'Upgrade changed existing application data' }
 Write-Output "Installer upgrade from 0.8.0 to $Version preserves the application-data marker"
+
+$runtime = Join-Path $destination 'v2/python.exe'
+& $runtime -I (Join-Path $PSScriptRoot 'test-package-contents.py') $destination
+if ($LASTEXITCODE -ne 0) { throw 'Installed package content checks failed' }
+$previousVideoRuntime=$env:MAGNETRON_VIDEO_RUNTIME
+try {
+    $env:MAGNETRON_VIDEO_RUNTIME=Join-Path $destination 'v2'
+    & $runtime -I (Join-Path $PSScriptRoot 'test-video.py')
+    if ($LASTEXITCODE -ne 0) { throw 'Installed video runtime checks failed' }
+} finally { $env:MAGNETRON_VIDEO_RUNTIME=$previousVideoRuntime }
+if ($LASTEXITCODE -ne 0) { throw 'Installed package content validation failed' }

@@ -21,3 +21,8 @@ $notice=[IO.File]::ReadAllText((Join-Path $projectRoot 'docs/licenses/libtorrent
 Copy-Item -LiteralPath src-tauri/v2/worker.py -Destination vendor/v2-runtime/worker.py -Force
 & ./vendor/v2-runtime/python.exe -I -c 'import libtorrent; print(libtorrent.version)'
 if ($LASTEXITCODE -ne 0) { throw 'El motor v2 no arranca' }
+
+Copy-Item -LiteralPath src-tauri/v2/engine_guard.py -Destination vendor/v2-runtime/engine_guard.py -Force
+
+& ./vendor/v2-runtime/python.exe scripts/prepare-video.py
+if ($LASTEXITCODE -ne 0) { throw "Video tool preparation failed" }

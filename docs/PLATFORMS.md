@@ -35,9 +35,9 @@ The native GitHub workflow builds and uploads experimental artifacts only; it do
 
 ## Lifecycle, signing and updates
 
-Normal Quit stops engines on all targets. Windows additionally uses kernel Job Objects for abnormal parent exit. Equivalent crash containment is not yet provided for all Unix child engines; Python transfer workers observe stdin closure, but abrupt crashes must be tested for remaining engines.
+Normal Quit stops engines on all targets. Windows additionally uses kernel Job Objects for abnormal parent exit. The 0.9.0 candidate uses private pipe-driven guards and isolated process groups for abnormal parent exit on Unix; guard/crash isolation passed the native recovery matrix.
 
-Native Jackett updates use target-specific tar.gz assets, bounded extraction and executable permissions; Windows retains ZIP updates. Signed application-installer updates remain Windows-only infrastructure and are disabled on Unix. Linux/macOS currently require manual application package upgrades.
+Native Jackett updates use target-specific tar.gz assets, bounded extraction and executable permissions; Windows retains ZIP updates. Published 0.8.1 Unix packages still require one manual upgrade. The 0.9.0 candidate implements platform-specific signed update channels for Debian/AppImage and both Mac architectures. AppImage/Mac require a writable installation location; Debian uses polkit/dpkg and normal OS authorisation. The updater preserves the previous application until startup acknowledgement. Native candidate acceptance is recorded separately from the older published baseline.
 
 Apple Developer signing/notarization and clean-machine Gatekeeper testing are not configured. Do not present unsigned CI artifacts as notarized or production-validated packages.
 

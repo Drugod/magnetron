@@ -1,44 +1,34 @@
-# Roadmap — MAGNETRON 0.8.0
+# MAGNETRON 0.9.0 release checklist
 
-Updated October 25, 2026. The owner has functionally validated 0.8.0 on their Windows machine. This is not independent or clean-machine validation.
+Updated October 28, 2026. Published baseline: 0.8.1. Version 0.9.0 is a working candidate, not a published release.
 
-## Implemented
+## Completed baseline
 
-- Unified search/link input, content filters, sorting, search replacement and clearing.
-- Integrated v1/hybrid/v2 and eD2k transfers, persistent queues, pause/resume, cancellation and verified completion/file release.
-- Direct destinations, content transfer limits and confirmed payload deletion preserving unrelated files.
-- Automatic public Jackett sources, health/backoff, official engine update staging and fallback.
-- Local index, optional DHT metadata discovery, record/text budgets, recovery timing and local-hour scheduling.
-- Experimental Kad bootstrap/search: one public test connected and completed with zero complete-source results.
-- Explicit per-network arbitrary-folder sharing, read-only folder torrent storage and copyable magnets.
-- Links/CSV/JSON export, ranking improvements and keyboard download actions. Favourites navigation and actions were removed for simplicity in 0.8.1.
-- Spanish/English and light/dark/system appearance controls at the top right, close-to-tray and Quit.
-- Windows portable/NSIS packaging, pinned preparation scripts and license/source notices.
-- Windows 0.8.1 signed update channel, periodic checks and integrated update notice; installer upgrade and real signed-installer validation passed in CI.
+- Unified search and links, torrent v1/hybrid/v2 and eD2k transfers, direct destinations and safe payload deletion.
+- Source automation, optional DHT/Kad discovery, explicit folder sharing and transfer limits.
+- Spanish/English, appearance controls, integrated downloads, close-to-tray and Windows signed updates.
+- Crash containment, atomic private queues with checkpoint recovery, real engine restart, dependency fixes and browser accessibility corrections.
+- Four-platform 30-minute recovery matrix and package checks passed at 1d47bd5. See SECURITY-REVIEW.md for exact evidence and limits.
 
-## Release work remaining
+## Verified for the 0.9.0 candidate
 
-- Publish reviewed source, a versioned installer, checksums and matching source on GitHub.
-- Validate and publish the 0.8.1 bootstrap release; existing 0.8.0 clients require one manual installation. Signing key is backed up locally and stored as an encrypted Actions secret.
-- Obtain/configure Authenticode signing if recognised publisher identity is required.
-- Validate installation, upgrade and uninstall on a clean Windows system, including disk/network failures.
-- Run prolonged Kad/transfer tests and broader relevance/coverage measurements.
-- Obtain independent security/privacy and screen-reader accessibility reviews.
+- Installed version visible in Settings / MAGNETRON updates.
+- Individual YouTube links through the existing input and download list; default maximum quality in Settings.
+- Private pinned video tools, local-only FFmpeg build, no user-installed dependencies.
+- Signed native update manifests and installers for Linux AppImage/Debian and both Mac architectures, with startup acknowledgement and application recovery.
 
-## Experimental native packages
+## Delivery status and publication checkpoint
 
-Linux x64 (DEB/AppImage), macOS Apple Silicon and macOS Intel (DMG/app archive) passed native compilation, transfer tests and packaged-runtime checks. See PLATFORMS.md for evidence and limitations. End-user installation and desktop feedback remain pending; publishing these packages as experimental does not require claiming desktop validation.
+- Completed: fresh video, updater, security, accessibility, native package and four-platform 30-minute recovery checks passed at 05295dd.
+- Completed: actual signed package bytes were verified for all five update channels; package/install/runtime checks passed.
+- Completed: versioned installers, matching source, manifests and release notes are prepared; final upload-set checksums are generated alongside the kit. See [verification](VERIFICATION-0.9.0.md).
+- Obtain owner approval for the concrete new GitHub release; publish only after acceptance.
+- Prepare SourceForge profile and upload set after the GitHub release.
 
-## Next release priorities
+## External validation and optional certification
 
-- Make experimental packages and matching source available through a reviewed GitHub Release.
-- Collect reproducible community reports using the issue forms and TESTING.md.
-- Triage reports by platform and fix installation, transfer and file-management failures first.
-- Complete Apple signing/notarization when developer credentials become available.
-- Publish the reviewed 0.8.1 bootstrap release. CI verified upgrade from 0.8.0, preservation of an application-data marker, acceptance of the real signed installer, same-version rejection and one-byte tamper rejection. A graphical end-to-end update on an end-user desktop remains pending.
+- End-user graphical update tests, polkit authorisation and Mac Gatekeeper reports.
+- Apple Developer ID/notarisation and Windows Authenticode require external publisher credentials. They do not replace the application's update signatures.
+- Independent security/privacy and screen-reader reviews are not represented by the maintainer's automated checks.
 
-## Future scope
-
-Private-source accounts/external Torznab configuration, hard CPU/total-disk limits, Unix abnormal-exit engine containment and automatic executable rollback need additional development and validation. Linux ARM and Windows ARM are outside the current build matrix.
-
-Separate history navigation, the source-status wall, decorative sidebar text, Cancel Search, More Filters, separate DHT navigation and a separate pasted-link form were deliberately removed for simplicity.
+Private indexer accounts, Windows/Linux ARM packages and hard CPU/total-disk quotas are future scope, not part of this candidate.

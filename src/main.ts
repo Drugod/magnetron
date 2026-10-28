@@ -1,4 +1,6 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
+import { getVersion } from "@tauri-apps/api/app";
+import packageInfo from "../package.json";
 import { listen } from "@tauri-apps/api/event";
 import {
   bytes,
@@ -157,7 +159,7 @@ setupViews();
 const downloader = setupDownloads(toast);
 $("#settings-form").insertAdjacentHTML(
   "afterbegin",
-  `<h3>Descargas</h3><label for="download-folder">Carpeta de descarga</label><div class="folder-setting"><input id="download-folder" name="download_folder" readonly placeholder="Se preguntará en la primera descarga"><button type="button" id="choose-default-folder" class="text-button">Elegir carpeta</button><button type="button" id="reset-default-folder" class="text-button">Quitar</button></div><p class="muted">Los archivos se guardan directamente aquí, sin carpetas añadidas por MAGNETRON.</p><label class="setting-row">Límite de bajada (KiB/s)<input name="download_limit_kib" type="number" min="0" max="1048576" step="1" required></label><label class="setting-row">Límite de subida (KiB/s)<input name="upload_limit_kib" type="number" min="0" max="1048576" step="1" required></label><p class="muted">0 = sin límite. Mínimo limitado: 32 KiB/s. Se reparte entre BitTorrent y eD2k cuando ambas redes están activas.</p>`,
+  `<h3>Descargas</h3><label class="setting-row"><span>Calidad de YouTube</span><select name="video_quality"><option value="0">Mejor disponible</option><option value="2160">2160p</option><option value="1440">1440p</option><option value="1080">1080p</option><option value="720">720p</option><option value="480">480p</option><option value="360">360p</option></select></label><p class="muted">Se descargará hasta la calidad elegida, según lo disponible en el vídeo.</p><label for="download-folder">Carpeta de descarga</label><div class="folder-setting"><input id="download-folder" name="download_folder" readonly placeholder="Se preguntará en la primera descarga"><button type="button" id="choose-default-folder" class="text-button">Elegir carpeta</button><button type="button" id="reset-default-folder" class="text-button">Quitar</button></div><p class="muted">Los archivos se guardan directamente aquí, sin carpetas añadidas por MAGNETRON.</p><label class="setting-row">Límite de bajada (KiB/s)<input name="download_limit_kib" type="number" min="0" max="1048576" step="1" required></label><label class="setting-row">Límite de subida (KiB/s)<input name="upload_limit_kib" type="number" min="0" max="1048576" step="1" required></label><p class="muted">0 = sin límite. Mínimo limitado: 32 KiB/s. Se reparte entre BitTorrent y eD2k cuando ambas redes están activas.</p>`,
 );
 
 for (const name of ["ubuntu", "debian", "archive"])
@@ -514,7 +516,7 @@ async function search(query: string) {
   query = query.trim();
   if (!query) return;
   showView("search");
-  if (/^(ed2k:\/\/|magnet:)/i.test(query)) {
+  if (/^(ed2k:\/\/|magnet:|https:\/\/)/i.test(query)) {
     await downloader.addLinks(query);
     return;
   }
@@ -704,6 +706,20 @@ async function init() {
       } else if (e.kind === "warning") toast(e.message ?? "Aviso");
     });
     settings = await invoke<Settings>("get_settings");
+    const recovery = await invoke<string[]>("take_recovery_notices");
+    if (recovery.length) {
+      const notice = textEl("section", "", "notice recovery-notice");
+      notice.setAttribute("role", "status");
+      for (const message of recovery) notice.append(textEl("p", message));
+      const dismiss = textEl(
+        "button",
+        "Entendido",
+        "text-button",
+      ) as HTMLButtonElement;
+      dismiss.onclick = () => notice.remove();
+      notice.append(dismiss);
+      $(".window-controls").after(notice);
+    }
     await invoke("set_ui_language", { language: getLanguage() });
     await invoke("set_window_appearance", { theme: getAppearance() });
   } catch (e) {
@@ -889,8 +905,18 @@ setInterval(() => void refreshIndex(), 3000);
 
 $("#settings-form .dialog-actions").insertAdjacentHTML(
   "beforebegin",
-  `<details class="advanced-settings"><summary>Actualizaciones de MAGNETRON</summary><p id="app-update-state" class="muted" role="status">Las actualizaciones se comprueban automáticamente en Windows.</p><div class="dialog-actions"><button type="button" id="check-app-update" class="text-button">Comprobar actualizaciones</button><button type="button" id="install-app-update" class="text-button" hidden>Instalar actualización y cerrar</button></div></details>`,
+  `<details class="advanced-settings"><summary><span>Actualizaciones de MAGNETRON</span> · <span id="installed-app-version"></span></summary><p id="app-update-state" class="muted" role="status">Las actualizaciones se comprueban automáticamente.</p><div class="dialog-actions"><button type="button" id="check-app-update" class="text-button">Comprobar actualizaciones</button><button type="button" id="install-app-update" class="text-button" hidden>Instalar actualización y cerrar</button></div></details>`,
 );
+// Read the installed binary version, independently of available updates.
+$("#installed-app-version").textContent = `v${packageInfo.version}`;
+if (isTauri()) {
+  void getVersion()
+    .then((version) => {
+      $("#installed-app-version").textContent = `v${version}`;
+    })
+    .catch((error) => console.error("Cannot read installed application version", error));
+}
+
 type AppUpdateStatus = {
   configured: boolean;
   ready: boolean;
@@ -919,6 +945,11 @@ if (isTauri())
   void listen<AppUpdateStatus>("app-update-ready", (e) =>
     displayAppUpdate(e.payload),
   );
+if (isTauri())
+  void listen<string>("app-update-install-error", (event) => {
+    $("#app-update-state").textContent = event.payload;
+    toast(translate(event.payload));
+  });
 $("#check-app-update").onclick = async () => {
   const button = $<HTMLButtonElement>("#check-app-update");
   button.disabled = true;

@@ -3,6 +3,12 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+    inputs:
+      sign_updates:
+        description: Sign updater manifests for this reviewed build (does not publish)
+        required: false
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -11,6 +17,7 @@ concurrency:
 
 jobs:
   native:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     name: ${{ matrix.name }}
     strategy:
       fail-fast: false
@@ -49,12 +56,19 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev librsvg2-dev libayatana-appindicator3-dev patchelf xvfb
+      - uses: actions/cache@v4
+        with:
+          path: vendor/video-build
+          key: video-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/video-assets.json', 'scripts/prepare-video.py') }}
+      - name: Windows video compiler
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if (-not (Test-Path 'C:/msys64/mingw64/bin/gcc.exe')) {
+            & C:/msys64/usr/bin/bash.exe -lc 'pacman --noconfirm --needed -S mingw-w64-x86_64-gcc make'
+            if ($LASTEXITCODE -ne 0) { throw 'Video compiler setup failed' }
+          }
       - run: npm ci
-      - name: Prepare pinned native engines and licenses
-        run: python scripts/prepare-native.py
-      - run: python scripts/test-native-preparation.py
-      - run: npm test
-      - run: npm run build
       # Hosted Intel runners can have an unresolvable local hostname. aMuled
       # resolves it synchronously before opening its control socket. This entry
       # describes only the disposable runner, never an end user's machine.
@@ -63,6 +77,15 @@ jobs:
         run: |
           sudo hostname localhost
           python -c "import socket; assert socket.gethostname() == 'localhost'; assert socket.getaddrinfo(socket.gethostname(), None)"
+      - name: Prepare pinned native engines and licenses
+        run: python scripts/prepare-native.py
+      - run: python scripts/test-video.py
+      - run: python scripts/test-native-preparation.py
+      - run: python scripts/test-engine-guard.py
+      - run: python scripts/check-vendor-patches.py
+      - run: node --test scripts/test-native-update.mjs scripts/test-sign-update.mjs
+      - run: npm test
+      - run: npm run build
       - name: Test Rust on Linux
         if: runner.os == 'Linux'
         run: xvfb-run -a cargo test --locked --manifest-path src-tauri/Cargo.toml
@@ -78,6 +101,9 @@ jobs:
             export LD_LIBRARY_PATH="$PWD/vendor/native/v2/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
           fi
           npm run tauri -- build --verbose
+      - name: Test optimized GLib security regression
+        if: runner.os == 'Linux'
+        run: xvfb-run -a cargo test --locked --release --manifest-path src-tauri/Cargo.toml patched_variant_string_iteration_survives_optimization
       - name: Test relocated package runtime
         run: python scripts/test-native-package.py
       - name: Package macOS application archive
@@ -85,6 +111,21 @@ jobs:
         run: ditto -c -k --keepParent src-tauri/target/release/bundle/macos/MAGNETRON.app artifacts/MAGNETRON-macOS-app.zip
       - name: Generate checksums
         run: python scripts/package-native.py
+      - name: Sign native update manifests
+        if: github.event_name == 'workflow_dispatch' && inputs.sign_updates
+        env:
+          MAGNETRON_UPDATE_PRIVATE_KEY: ${{ secrets.MAGNETRON_UPDATE_PRIVATE_KEY }}
+        run: python scripts/sign-native-updates.py
+      - name: Validate actual signed native package
+        if: github.event_name == 'workflow_dispatch' && inputs.sign_updates
+        env:
+          MAGNETRON_UPDATE_TEST_DIR: ${{ github.workspace }}/artifacts
+        shell: bash
+        run: |
+          cargo test --locked --manifest-path src-tauri/Cargo.toml validates_real_signed_native_release_before_installation -- --ignored
+          if [ "$RUNNER_OS" = Linux ]; then
+            APPIMAGE=fixture cargo test --locked --manifest-path src-tauri/Cargo.toml validates_real_signed_native_release_before_installation -- --ignored
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
@@ -94,4 +135,6 @@ jobs:
             src-tauri/target/release/bundle/appimage/*.AppImage
             src-tauri/target/release/bundle/dmg/*.dmg
             artifacts/MAGNETRON-macOS-app.zip
+            artifacts/MAGNETRON_*_macos-*.app.zip
+            artifacts/*-update.json
             artifacts/SHA256SUMS-native.txt

@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.9.0 (candidate, not yet released)
+
+- Add individual YouTube video downloads in the existing input and integrated list, with maximum quality in Settings.
+- Bundle pinned video tools, licences and FFmpeg source; preserve existing destination files and remove completed private duplicates.
+- Add signed native update channels, startup acknowledgement and application recovery for Linux/Mac.
+- Show installed version in Settings / MAGNETRON updates.
+- Recover private queues from valid checkpoints and preserve damaged state for inspection.
+- Contain Unix engines after parent crashes and restart failed owned engines with fresh credentials.
+- Fix dependency advisories and light/dark contrast; add four-platform prolonged recovery and package gates.
+
+## 0.8.1
+
+- Enable the signed Windows update channel and validate installer upgrades.
+- Remove favourites and move language/appearance controls to the top right.
+- Publish experimental Linux/macOS packages.
+
+
 ## 0.8.0
 
 - Add pure BitTorrent v2 metadata/source handling and integrated downloads through bundled libtorrent.

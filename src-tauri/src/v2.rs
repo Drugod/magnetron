@@ -5,7 +5,7 @@ use std::{
     collections::BTreeMap,
     io::{BufRead, Write},
     path::PathBuf,
-    process::{Child, ChildStdin, Command, Stdio},
+    process::{ChildStdin, Command, Stdio},
     sync::{Arc, Mutex},
     time::Duration,
 };
@@ -13,20 +13,23 @@ use std::{
 struct Entry {
     row: Download,
     files: Vec<PathBuf>,
+    #[serde(default)]
+    quality: u32,
 }
 struct Running {
-    child: Child,
+    child: crate::engine::OwnedProcess,
     input: ChildStdin,
     token: u64,
     last_limits: (u32, u32),
-    _job: crate::engine::Job,
 }
 pub struct Downloads {
+    video: bool,
     runtime: PathBuf,
     data: PathBuf,
     records: Mutex<BTreeMap<String, Entry>>,
     jobs: Mutex<BTreeMap<String, Running>>,
     control: Mutex<()>,
+    save_lock: Mutex<()>,
     limits: Mutex<(u32, u32)>,
 }
 pub fn identity(uri: &str) -> Result<(String, String), String> {
@@ -93,14 +96,16 @@ fn stop(mut job: Running) {
 }
 impl Downloads {
     pub fn new(runtime: PathBuf, data: PathBuf) -> Result<Arc<Self>, String> {
-        std::fs::create_dir_all(&data).map_err(|e| e.to_string())?;
+        Self::new_backend(runtime, data, false)
+    }
+    pub fn new_video(runtime: PathBuf, data: PathBuf) -> Result<Arc<Self>, String> {
+        Self::new_backend(runtime, data, true)
+    }
+    fn new_backend(runtime: PathBuf, data: PathBuf, video: bool) -> Result<Arc<Self>, String> {
+        crate::secure_fs::private_dir(&data)?;
         let file = data.join("downloads.json");
-        let mut records: BTreeMap<String, Entry> = if file.exists() {
-            serde_json::from_slice(&std::fs::read(file).map_err(|e| e.to_string())?)
-                .map_err(|e| e.to_string())?
-        } else {
-            BTreeMap::new()
-        };
+        let mut records: BTreeMap<String, Entry> =
+            crate::secure_fs::load_queue(&file, if video { "YouTube" } else { "BitTorrent v2" })?;
         for e in records.values_mut() {
             if !matches!(e.row.state.as_str(), "completed" | "cancelled") {
                 e.row.state = "paused".into()
@@ -109,22 +114,21 @@ impl Downloads {
             e.row.upload_speed = 0;
         }
         Ok(Arc::new(Self {
+            video,
             runtime,
             data,
             records: Mutex::new(records),
             jobs: Mutex::new(BTreeMap::new()),
             control: Mutex::new(()),
+            save_lock: Mutex::new(()),
             limits: Mutex::new((0, 0)),
         }))
     }
     fn save(&self) -> Result<(), String> {
+        let _guard = self.save_lock.lock().map_err(|e| e.to_string())?;
         let bytes =
             serde_json::to_vec(&*self.records.lock().unwrap()).map_err(|e| e.to_string())?;
-        let mut file = tempfile::NamedTempFile::new_in(&self.data).map_err(|e| e.to_string())?;
-        file.write_all(&bytes).map_err(|e| e.to_string())?;
-        file.persist(self.data.join("downloads.json"))
-            .map_err(|e| e.to_string())?;
-        Ok(())
+        crate::secure_fs::atomic_queue(&self.data.join("downloads.json"), &bytes)
     }
     pub fn list(&self) -> Vec<Download> {
         self.records
@@ -178,7 +182,23 @@ impl Downloads {
         name: String,
         folder: PathBuf,
     ) -> Result<String, String> {
-        let (id, uri) = identity(&uri)?;
+        self.add_quality(uri, name, folder, 1080)
+    }
+    pub fn add_quality(
+        self: &Arc<Self>,
+        uri: String,
+        name: String,
+        folder: PathBuf,
+        quality: u32,
+    ) -> Result<String, String> {
+        if !matches!(quality, 0 | 360 | 480 | 720 | 1080 | 1440 | 2160) {
+            return Err("Calidad de vídeo inválida".into());
+        }
+        let (id, uri) = if self.video {
+            crate::video::identity(&uri)?
+        } else {
+            identity(&uri)?
+        };
         let _guard = self.control.lock().unwrap();
         if self.records.lock().unwrap().contains_key(&id) {
             return Ok(id);
@@ -201,6 +221,7 @@ impl Downloads {
                     error: None,
                 },
                 files: vec![],
+                quality,
             },
         );
         self.save()?;
@@ -225,12 +246,16 @@ impl Downloads {
         let staging = self
             .data
             .join("staging")
-            .join(id.trim_start_matches("bt2:"));
+            .join(id.split_once(':').ok_or("Identidad inválida")?.1);
         std::fs::create_dir_all(&staging).map_err(|e| e.to_string())?;
         let mut cmd = Command::new(crate::platform::python(&self.runtime));
         cmd.arg("-I")
             .arg("-u")
-            .arg(self.runtime.join("worker.py"))
+            .arg(self.runtime.join(if self.video {
+                "video_worker.py"
+            } else {
+                "worker.py"
+            }))
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null());
@@ -239,21 +264,11 @@ impl Downloads {
             use std::os::windows::process::CommandExt;
             cmd.creation_flags(0x08000000);
         }
-        let mut child = cmd
-            .spawn()
-            .map_err(|e| format!("No se pudo iniciar BitTorrent v2: {e}"))?;
-        let job = match crate::engine::Job::attach(&child) {
-            Ok(job) => job,
-            Err(e) => {
-                let _ = child.kill();
-                let _ = child.wait();
-                return Err(e);
-            }
-        };
+        let mut child = crate::engine::OwnedProcess::spawn(&mut cmd, &self.runtime)?;
         let mut input = child.stdin.take().unwrap();
         let output = child.stdout.take().unwrap();
         let (down, up) = *self.limits.lock().unwrap();
-        writeln!(input,"{}",serde_json::json!({"uri":e.row.uri,"folder":e.row.folder,"staging":staging,"resume":resume,"down":down,"up":up})).map_err(|e|e.to_string())?;
+        writeln!(input,"{}",serde_json::json!({"uri":e.row.uri,"folder":e.row.folder,"staging":staging,"resume":resume,"down":down,"up":up,"quality":e.quality})).map_err(|e|e.to_string())?;
         input.flush().map_err(|e| e.to_string())?;
         let token = rand::random::<u64>();
         self.jobs.lock().unwrap().insert(
@@ -263,7 +278,6 @@ impl Downloads {
                 input,
                 token,
                 last_limits: (down, up),
-                _job: job,
             },
         );
         let weak = Arc::downgrade(self);
@@ -307,6 +321,12 @@ impl Downloads {
                             break;
                         }
                         e.files = files;
+                        if this.video {
+                            if let Some(name) = message["name"].as_str().filter(|n| n.len() <= 1024)
+                            {
+                                e.row.name = name.to_owned();
+                            }
+                        }
                         e.row.total_bytes = message["total"].as_u64().unwrap_or(0);
                     }
                     Some("progress") => {
@@ -460,15 +480,7 @@ pub fn verify(
         use std::os::windows::process::CommandExt;
         cmd.creation_flags(0x08000000);
     }
-    let mut child = cmd.spawn().map_err(|e| e.to_string())?;
-    let _job = match crate::engine::Job::attach(&child) {
-        Ok(job) => job,
-        Err(e) => {
-            let _ = child.kill();
-            let _ = child.wait();
-            return Err(e);
-        }
-    };
+    let mut child = crate::engine::OwnedProcess::spawn(&mut cmd, runtime)?;
     let request = serde_json::json!({"uri":uri,"folder":temp.path(),"staging":temp.path(),"verify":true,"down":32,"up":16});
     let mut input = child.stdin.take().unwrap();
     if let Err(e) = writeln!(input, "{request}") {
@@ -521,7 +533,8 @@ mod tests {
         let runtime = crate::platform::dev_runtime();
         let seed_dir = tmp.path().join("seed");
         std::fs::create_dir(&seed_dir).unwrap();
-        let mut child = Command::new(crate::platform::python(&runtime))
+        let mut seed_command = Command::new(crate::platform::python(&runtime));
+        seed_command
             .arg("-I")
             .arg("-u")
             .arg(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../scripts/test-v2.py"))
@@ -529,10 +542,8 @@ mod tests {
             .arg(&seed_dir)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .spawn()
-            .unwrap();
-        let _job = crate::engine::Job::attach(&child).unwrap();
+            .stderr(Stdio::null());
+        let mut child = crate::engine::OwnedProcess::spawn(&mut seed_command, &runtime).unwrap();
         let mut output = std::io::BufReader::new(child.stdout.take().unwrap());
         let mut uri = String::new();
         output.read_line(&mut uri).unwrap();

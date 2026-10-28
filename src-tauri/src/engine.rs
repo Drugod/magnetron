@@ -7,6 +7,8 @@ use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha512};
+#[cfg(unix)]
+use std::os::unix::process::CommandExt;
 use std::{
     future::Future,
     path::PathBuf,
@@ -15,7 +17,7 @@ use std::{
     sync::{Arc, Mutex},
     time::Duration,
 };
-use tokio::sync::OnceCell;
+use tokio::sync::Mutex as AsyncMutex;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Indexer {
@@ -28,10 +30,10 @@ pub struct Indexer {
 }
 pub struct Engine {
     executable: PathBuf,
+    runtime: PathBuf,
     data: PathBuf,
-    started: OnceCell<Connection>,
-    child: Mutex<Option<Child>>,
-    job: Mutex<Option<Job>>,
+    started: AsyncMutex<Option<Arc<Connection>>>,
+    child: Mutex<Option<OwnedProcess>>,
     configured: tokio::sync::RwLock<std::collections::HashSet<String>>,
     health: Mutex<std::collections::BTreeMap<String, Health>>,
 }
@@ -57,7 +59,7 @@ pub struct Connection {
 pub(crate) struct Job(isize);
 #[cfg(windows)]
 impl Job {
-    pub(crate) fn attach(child: &Child) -> Result<Self, String> {
+    pub(crate) fn attach(child: &Child, _runtime: &std::path::Path) -> Result<Self, String> {
         use std::os::windows::io::AsRawHandle;
         use windows_sys::Win32::System::JobObjects::*;
         unsafe {
@@ -90,32 +92,119 @@ impl Drop for Job {
         }
     }
 }
-#[cfg(not(windows))]
-pub(crate) struct Job;
-#[cfg(not(windows))]
-impl Job {
-    pub(crate) fn attach(_child: &Child) -> Result<Self, String> {
-        Ok(Self)
+#[cfg(unix)]
+pub(crate) use crate::process_guard::Job;
+/// Owns both the process and its descendant-lifetime guard on all exit paths.
+pub(crate) struct OwnedProcess {
+    child: Option<Child>,
+    job: Option<Job>,
+}
+impl OwnedProcess {
+    pub(crate) fn spawn(command: &mut Command, runtime: &std::path::Path) -> Result<Self, String> {
+        #[cfg(unix)]
+        command.process_group(0);
+        let mut child = command
+            .spawn()
+            .map_err(|e| format!("Engine could not start: {e}"))?;
+        match Job::attach(&child, runtime) {
+            Ok(job) => Ok(Self {
+                child: Some(child),
+                job: Some(job),
+            }),
+            Err(e) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                Err(e)
+            }
+        }
+    }
+}
+impl OwnedProcess {
+    pub(crate) fn wait_with_output(mut self) -> std::io::Result<std::process::Output> {
+        self.child.take().unwrap().wait_with_output()
+    }
+}
+impl std::ops::Deref for OwnedProcess {
+    type Target = Child;
+    fn deref(&self) -> &Child {
+        self.child.as_ref().unwrap()
+    }
+}
+impl std::ops::DerefMut for OwnedProcess {
+    fn deref_mut(&mut self) -> &mut Child {
+        self.child.as_mut().unwrap()
+    }
+}
+impl Drop for OwnedProcess {
+    fn drop(&mut self) {
+        if let Some(mut child) = self.child.take() {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+        self.job.take();
     }
 }
 impl Engine {
     pub fn new(executable: PathBuf, data: PathBuf) -> Arc<Self> {
+        Self::new_with_runtime(executable, data, crate::platform::dev_runtime())
+    }
+    pub fn new_with_runtime(executable: PathBuf, data: PathBuf, runtime: PathBuf) -> Arc<Self> {
         let health = std::fs::read(data.join("source-health.json"))
             .ok()
             .and_then(|b| serde_json::from_slice(&b).ok())
             .unwrap_or_default();
         Arc::new(Self {
             executable,
+            runtime,
             data,
-            started: OnceCell::new(),
+            started: AsyncMutex::new(None),
             child: Mutex::new(None),
-            job: Mutex::new(None),
             configured: tokio::sync::RwLock::new(std::collections::HashSet::new()),
             health: Mutex::new(health),
         })
     }
-    pub async fn connection(&self) -> Result<&Connection, String> {
-        self.started.get_or_try_init(|| self.start()).await
+    pub async fn connection(&self) -> Result<Arc<Connection>, String> {
+        let mut connection = self.started.lock().await;
+        let alive = self
+            .child
+            .lock()
+            .map_err(|e| e.to_string())?
+            .as_mut()
+            .is_some_and(|child| matches!(child.try_wait(), Ok(None)));
+        if !alive {
+            self.stop_process();
+            *connection = None;
+            self.configured.write().await.clear();
+        }
+        if let Some(c) = connection.as_ref() {
+            return Ok(c.clone());
+        }
+        match self.start().await {
+            Ok(c) => {
+                let c = Arc::new(c);
+                *connection = Some(c.clone());
+                Ok(c)
+            }
+            Err(e) => {
+                self.stop_process();
+                Err(e)
+            }
+        }
+    }
+    fn stop_process(&self) {
+        if let Ok(mut slot) = self.child.lock() {
+            if let Some(mut child) = slot.take() {
+                let _ = child.kill();
+                let _ = child.wait();
+            }
+        }
+    }
+    pub async fn shutdown(&self) {
+        let mut connection = self.started.lock().await;
+        self.stop_process();
+        *connection = None;
+        self.configured.write().await.clear();
+        let _ = std::fs::remove_file(self.data.join("ServerConfig.json"));
     }
     async fn start(&self) -> Result<Connection, String> {
         if let Some(exe) = crate::engine_updates::selected(&self.data) {
@@ -126,7 +215,6 @@ impl Engine {
                         let _ = child.kill();
                         let _ = child.wait();
                     }
-                    self.job.lock().unwrap().take();
                     crate::engine_updates::reject(&self.data);
                 }
             }
@@ -142,7 +230,7 @@ impl Engine {
         // Reserve a free loopback port; the engine binds only 127.0.0.1.
         let listener = std::net::TcpListener::bind("127.0.0.1:0").map_err(|e| e.to_string())?;
         let port = listener.local_addr().map_err(|e| e.to_string())?.port();
-        std::fs::create_dir_all(&self.data).map_err(|e| e.to_string())?;
+        crate::secure_fs::private_dir(&self.data)?;
         let mut random = [0; 32];
         rand::thread_rng().fill_bytes(&mut random);
         let key = hex::encode(random);
@@ -153,11 +241,10 @@ impl Engine {
             .flat_map(u16::to_le_bytes)
             .collect();
         let config = serde_json::json!({"Port":port,"LocalBindAddress":"127.0.0.1","AllowExternal":false,"AllowCORS":false,"APIKey":key,"AdminPassword":hex::encode(Sha512::digest(&salted)),"UpdateDisabled":true,"CacheEnabled":true,"CacheTtl":2100,"CacheMaxResultsPerIndexer":500,"FlareSolverrUrl":"","OmdbApiKey":""});
-        std::fs::write(
-            self.data.join("ServerConfig.json"),
-            serde_json::to_vec_pretty(&config).map_err(|e| e.to_string())?,
-        )
-        .map_err(|e| e.to_string())?;
+        crate::secure_fs::atomic_private(
+            &self.data.join("ServerConfig.json"),
+            &serde_json::to_vec_pretty(&config).map_err(|e| e.to_string())?,
+        )?;
         drop(listener);
         let mut command = Command::new(executable);
         command
@@ -176,18 +263,7 @@ impl Engine {
             use std::os::windows::process::CommandExt;
             command.creation_flags(0x08000000);
         }
-        let mut child = command
-            .spawn()
-            .map_err(|e| format!("No se pudo arrancar el motor: {e}"))?;
-        {
-            match Job::attach(&child) {
-                Ok(job) => *self.job.lock().map_err(|e| e.to_string())? = Some(job),
-                Err(e) => {
-                    let _ = child.kill();
-                    return Err(e);
-                }
-            }
-        }
+        let child = OwnedProcess::spawn(&mut command, &self.runtime)?;
         *self.child.lock().map_err(|e| e.to_string())? = Some(child);
         let base = format!("http://127.0.0.1:{port}");
         let client = reqwest::Client::builder()
@@ -197,9 +273,29 @@ impl Engine {
             .build()
             .map_err(|e| e.to_string())?;
         let mut ready = false;
-        for _ in 0..100 {
+        // Cold .NET startup can exceed 15 seconds on Intel macOS. Bound the
+        // whole readiness phase, not a count of requests with 45-second timeouts.
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(60);
+        while tokio::time::Instant::now() < deadline {
+            let exited = self
+                .child
+                .lock()
+                .map_err(|e| e.to_string())?
+                .as_mut()
+                .ok_or("El motor se ha detenido")?
+                .try_wait()
+                .map_err(|e| e.to_string())?
+                .is_some();
+            if exited {
+                return Err("El motor terminó antes de estar disponible".into());
+            }
             if client
                 .post(format!("{base}/UI/Dashboard"))
+                .timeout(
+                    deadline
+                        .saturating_duration_since(tokio::time::Instant::now())
+                        .min(Duration::from_secs(2)),
+                )
                 .form(&[("password", &password)])
                 .send()
                 .await
@@ -256,7 +352,7 @@ impl Engine {
             h.retry_after = now() + 60 * (1u64 << h.failures.min(10));
         }
         if let Ok(bytes) = serde_json::to_vec(&*health) {
-            let _ = std::fs::write(self.data.join("source-health.json"), bytes);
+            let _ = crate::secure_fs::atomic_private(&self.data.join("source-health.json"), &bytes);
         }
         result
     }
@@ -534,6 +630,34 @@ mod tests {
         let rows = parse_results(xml, "test").unwrap();
         assert_eq!(rows[0].content_types, vec!["video"]);
         assert_eq!(rows[1].content_types, vec!["documents"]);
+    }
+    #[tokio::test]
+    async fn bundled_engine_recovers_after_owned_process_crash() {
+        let tmp = tempfile::tempdir().unwrap();
+        let engine = Engine::new(crate::platform::dev_jackett(), tmp.path().join("engine"));
+        let first = engine.connection().await.unwrap();
+        assert!(!first.catalog.is_empty());
+        let previous = {
+            let mut slot = engine.child.lock().unwrap();
+            let child = slot.as_mut().unwrap();
+            let pid = child.id();
+            child.kill().unwrap();
+            child.wait().unwrap();
+            pid
+        };
+        let restarted = engine.connection().await.unwrap();
+        assert!(
+            restarted.key != first.key,
+            "Recovered engine must use fresh control credentials"
+        );
+        assert_ne!(
+            engine.child.lock().unwrap().as_ref().unwrap().id(),
+            previous
+        );
+        assert!(!restarted.catalog.is_empty());
+        engine.shutdown().await;
+        assert!(engine.child.lock().unwrap().is_none());
+        assert!(!tmp.path().join("engine/ServerConfig.json").exists());
     }
     #[tokio::test]
     #[ignore = "Arranca el motor incluido y consulta fuentes públicas"]

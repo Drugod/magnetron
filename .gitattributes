@@ -5,3 +5,6 @@
 
 # Preserve original upstream license formatting.
 docs/licenses/* -whitespace
+
+# Security patch integrity checks use exact upstream bytes on every platform.
+third_party/** -text
