@@ -23,7 +23,7 @@ jobs:
       - run: npm test
       - run: npm run build
       - run: node scripts/test-accessibility.mjs
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: MAGNETRON-accessibility

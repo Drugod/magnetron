@@ -92,7 +92,7 @@ jobs:
           $env:MAGNETRON_UPDATE_TEST_DIR = (Resolve-Path artifacts/signed-update).Path
           cargo test --locked --manifest-path src-tauri/Cargo.toml validates_real_signed_release_before_installation -- --ignored
           if ($LASTEXITCODE -ne 0) { throw 'Real signed installer validation failed' }
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: MAGNETRON-signed-Windows-update
           path: artifacts/signed-update/*
