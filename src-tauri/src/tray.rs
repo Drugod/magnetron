@@ -2,7 +2,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    Manager,
+    Emitter, Manager,
 };
 pub struct TrayState {
     open: MenuItem<tauri::Wry>,
@@ -35,6 +35,20 @@ fn shutdown(app: tauri::AppHandle, installer: Option<std::path::PathBuf>) {
         return;
     }
     tauri::async_runtime::spawn(async move {
+        // Native installers wait for this process to exit. Validate and spawn
+        // them before stopping transfers, so an unwritable location leaves the
+        // running application fully usable.
+        #[cfg(unix)]
+        if let Some(path) = installer.as_ref() {
+            if let Err(error) = crate::app_updates::launch_native(&app, path) {
+                app.state::<TrayState>()
+                    .exiting
+                    .store(false, Ordering::SeqCst);
+                let _ = app.emit("app-update-install-error", error);
+                restore(&app);
+                return;
+            }
+        }
         let state = app.state::<crate::AppState>();
         let _ = crate::cancel_search(state.clone());
         state.discovery.pause().await;
@@ -44,18 +58,13 @@ fn shutdown(app: tauri::AppHandle, installer: Option<std::path::PathBuf>) {
         state.downloads.shutdown().await;
         state.ed2k_downloads.shutdown().await;
         state.engine.shutdown().await;
+        #[cfg(windows)]
         if let Some(path) = installer {
-            #[cfg(windows)]
-            let result = std::process::Command::new(path)
-                .spawn()
-                .map(|_| ())
-                .map_err(|e| e.to_string());
-            #[cfg(unix)]
-            let result = crate::app_updates::launch_native(&app, &path);
-            if result.is_err() {
+            if let Err(error) = std::process::Command::new(path).spawn() {
                 app.state::<TrayState>()
                     .exiting
                     .store(false, Ordering::SeqCst);
+                let _ = app.emit("app-update-install-error", error.to_string());
                 restore(&app);
                 return;
             }

@@ -4,6 +4,8 @@ A minimalist app to search, download, and share files over BitTorrent and eD2k.
 
 **Windows x64 · experimental Linux/macOS · GPL-3.0-only**
 
+This branch prepares the 0.9.0 candidate. New video and native update features below are not in the published 0.8.1 installer.
+
 One field for search queries and pasted links, built-in transfer engines, automatic public-source management and a local metadata index. The packaged app does not require separate Jackett, aMule, Python or Docker installations.
 
 ## Linux and macOS development
@@ -16,7 +18,7 @@ Get the packages from [Releases](https://github.com/Drugod/magnetron/releases/la
 
 The application executable alone is **not** a complete portable package. Keep `engine/`, `amule/`, `v2/` and `licenses/` beside it. Generated distributions are excluded from source commits.
 
-The current installer is not Authenticode-signed. Windows may show an unknown-publisher warning. Publisher signing and the public application-update channel are not configured yet.
+The current installer is not Authenticode-signed. Windows may show an unknown-publisher warning. The signed Windows application-update channel has been active since 0.8.1; publisher certification is separate.
 
 ## Feedback on experimental builds
 
@@ -26,12 +28,13 @@ Report installation, search, transfer or background-operation problems using the
 
 Windows x64 builds starting with 0.8.1 check the signed update channel after startup and every six hours while running. A newer installer downloads in the background, is verified, and appears as **Update available**. Installation requires a click and stops transfers first. GitHub receives update/download requests, including the connection's network address.
 
-**Already using 0.8.0? Install 0.8.1 manually once.** The distributed 0.8.0 executable has no configured channel and cannot activate it remotely. Linux/macOS application updates remain manual. Manifest signing does not provide an Authenticode publisher certificate.
+**Already using 0.8.0? Install 0.8.1 manually once.** The distributed 0.8.0 executable has no configured channel and cannot activate it remotely. Linux/macOS 0.8.1 upgrades remain manual. The 0.9.0 candidate adds signed background update checks and downloads for AppImage, Debian and both Mac architectures. Installation requires a click; Debian delegates privilege approval to polkit. AppImage/Mac replacements require a writable installation location and retain the previous application until startup is confirmed. Manifest signing does not provide an Authenticode or Apple Developer certificate.
 
 ## Features
 
-- Unified search and magnet/eD2k input; paste up to 100 links, one per line.
+- Unified search and magnet/eD2k/individual YouTube video input; paste up to 100 links, one per line.
 - Integrated BitTorrent v1/hybrid/v2 and eD2k downloads with progress, rates, pause, resume and cancellation.
+- YouTube maximum quality in Settings, with pinned bundled tools and no browser-cookie import. Public availability and formats depend on YouTube. Live streams, playlists, login-restricted content and DRM are not supported.
 - A remembered destination and global content transfer limits. Files go directly to the chosen directory; multi-file torrents retain their natural structure.
 - Optional sharing of selected folders, independently for BitTorrent and eD2k.
 - Automatic public Jackett sources, failure backoff and official engine update staging with checksum validation and fallback.
@@ -62,7 +65,7 @@ Peers can disconnect and downloads may still stall. Cache entries must be checke
 
 ## Sharing and privacy
 
-No MAGNETRON account, telemetry service or central backend is required. Sources, servers and peers can observe relevant queries and network addresses. Availability checks contact DHT/peers even when optional index discovery is paused.
+No MAGNETRON account, telemetry service or central backend is required. A YouTube download contacts Google/YouTube and exposes the selected video request and network address to those services. Sources, servers and peers can observe relevant queries and network addresses. Availability checks contact DHT/peers even when optional index discovery is paused.
 
 Only folders explicitly enabled in Settings are shared. BitTorrent generates a folder magnet using read-only storage; it does not publish that link to a website. eD2k publishes the selected files. Refresh shared files after folder changes. Active downloads still exchange available pieces independently of folder-sharing switches.
 
@@ -72,7 +75,7 @@ Local data uses `%LOCALAPPDATA%/local.magnetforge.desktop/`, preserving compatib
 
 ## Build on Windows
 
-Requirements: Node.js 22.12+, stable Rust MSVC, Visual Studio C++ build tools, Windows SDK and WebView2. Engine/dependency preparation needs network access.
+Requirements: Node.js 22.12+, MSYS2 at `C:/msys64` with MinGW64 GCC and make (video tool build), stable Rust MSVC, Visual Studio C++ build tools, Windows SDK and WebView2. Engine/dependency preparation needs network access.
 
 ~~~powershell
 npm ci
@@ -98,6 +101,6 @@ The desktop helper uses an optional local Rust toolchain under `.toolchain/`, ot
 
 ## License
 
-MAGNETRON's own code is **GPL-3.0-only**; see [LICENSE](LICENSE). Dependencies retain their licenses. Jackett and aMule run as separate bundled processes; distributed packages include their notices and corresponding pinned source archives, plus Python/libtorrent and Rust dependency notices.
+MAGNETRON's own code is **GPL-3.0-only**; see [LICENSE](LICENSE). Dependencies retain their licenses. Jackett and aMule run as separate bundled processes; distributed packages include their notices and corresponding pinned source archives, plus Python/libtorrent, Node, yt-dlp/EJS/certifi and Rust dependency notices. The local-only FFmpeg binaries include their pinned corresponding source and build configuration.
 
 Use MAGNETRON to access and share material you have the right to use.

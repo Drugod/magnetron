@@ -328,6 +328,14 @@ pub fn launch_native(app: &tauri::AppHandle, installer: &Path) -> Result<(), Str
         .map_err(|e| e.to_string())?;
     Ok(())
 }
+pub fn take_install_notice(app: &tauri::AppHandle) -> Option<String> {
+    let file = root(app).ok()?.join("install-error.txt");
+    if !file.is_file() {
+        return None;
+    }
+    std::fs::remove_file(file).ok()?;
+    Some("No se pudo completar la actualización. Se ha conservado la instalación anterior.".into())
+}
 pub fn confirm_startup(app: &tauri::AppHandle) {
     for arg in std::env::args().skip(1) {
         if let Some(token) = arg.strip_prefix("--magnetron-update-health=") {

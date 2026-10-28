@@ -55,9 +55,48 @@ class Logger:
 def digest(path):
     with path.open('rb') as f:return hashlib.file_digest(f,'sha256').digest()
 
-def publish(source,destination,identifier):
+def move_exclusive(source,target):
+    if os.name=='nt':
+        # Windows rename refuses an existing target, including on FAT/exFAT.
+        os.rename(source,target);return
+    import ctypes,errno
+    libc=ctypes.CDLL(None,use_errno=True)
+    if sys.platform=='darwin' and hasattr(libc,'renamex_np'):
+        rename=libc.renamex_np
+        rename.argtypes=[ctypes.c_char_p,ctypes.c_char_p,ctypes.c_uint]
+        result=rename(os.fsencode(source),os.fsencode(target),4) # RENAME_EXCL
+    elif hasattr(libc,'renameat2'):
+        rename=libc.renameat2
+        rename.argtypes=[ctypes.c_int,ctypes.c_char_p,ctypes.c_int,ctypes.c_char_p,ctypes.c_uint]
+        result=rename(-100,os.fsencode(source),-100,os.fsencode(target),1) # RENAME_NOREPLACE
+    else:result=None
+    if result==0:return
+    if result is not None:
+        error=ctypes.get_errno()
+        if error not in (errno.ENOSYS,errno.EINVAL,errno.ENOTSUP):raise OSError(error,os.strerror(error))
+    # Safe fallback for older filesystems; never use an overwriting rename.
+    os.link(source,target);source.unlink()
+
+def clean_interrupted_publication(journal,folder,identifier):
+    import stat
+    if not journal.is_file():return
+    try:
+        record=json.loads(journal.read_text(encoding='utf-8'))
+        name=record['name']
+        if record.get('folder')!=str(folder) or pathlib.Path(name).name!=name or not name.startswith('.magnetron-'+identifier+'-') or not name.endswith('.part'):return
+        temporary=folder/name
+        info=temporary.lstat()
+        if stat.S_ISREG(info.st_mode) and [info.st_dev,info.st_ino]==record.get('identity'):
+            temporary.unlink()
+    except (OSError,ValueError,KeyError,TypeError):pass
+    finally:
+        try:journal.unlink()
+        except OSError:pass
+
+def publish(source,destination,identifier,journal=None):
     """Exclusive final creation: preserve any unrelated file, even in a race."""
     folder=destination.parent
+    if journal is not None:clean_interrupted_publication(journal,folder,identifier)
     if destination.exists():
         if not destination.is_symlink() and destination.is_file() and digest(source)==digest(destination):return
         raise ValueError('A file with this name already exists; it has not been replaced')
@@ -67,15 +106,23 @@ def publish(source,destination,identifier):
     try:
         with tempfile.NamedTemporaryFile(prefix='.magnetron-'+identifier+'-',suffix='.part',dir=folder,delete=False) as out:
             temp=pathlib.Path(out.name)
+            if journal is not None:
+                info=os.fstat(out.fileno())
+                proof={'name':temp.name,'folder':str(folder),'identity':[info.st_dev,info.st_ino]}
+                pending=journal.with_suffix('.new')
+                with pending.open('w',encoding='utf-8') as state:
+                    json.dump(proof,state);state.flush();os.fsync(state.fileno())
+                os.replace(pending,journal)
             with source.open('rb') as incoming:
                 while chunk:=incoming.read(1024*1024):
                     if STOP.is_set():raise InterruptedError('Download stopped')
                     out.write(chunk)
             out.flush();os.fsync(out.fileno())
         if STOP.is_set():raise InterruptedError('Download stopped')
-        os.link(temp,destination)
+        move_exclusive(temp,destination)
     finally:
         if temp is not None:temp.unlink(missing_ok=True)
+        if journal is not None:journal.unlink(missing_ok=True)
 
 def main():
     global RATE
@@ -88,12 +135,15 @@ def main():
     if selected!=folder:raise ValueError('The download directory changed')
     stage=pathlib.Path(request['staging']).resolve(strict=True)
     if not folder.is_dir() or not stage.is_dir():raise ValueError('Invalid download directory')
+    clean_interrupted_publication(stage/'publish.json',folder,identifier)
     runtime=pathlib.Path(__file__).resolve().parent
     tools=runtime/'video-tools'
     node=tools/('node.exe' if os.name=='nt' else 'node')
     ffmpeg=tools/('ffmpeg.exe' if os.name=='nt' else 'ffmpeg')
     probe=tools/('ffprobe.exe' if os.name=='nt' else 'ffprobe')
     if not all(p.is_file() for p in (node,ffmpeg,probe)):raise ValueError('The bundled video tools are missing')
+    os.environ.pop('NODE_OPTIONS',None)
+    os.environ.pop('NODE_PATH',None)
     # -I ignores user paths/configuration; import only our pinned local wheels.
     sys.path.insert(0,str(runtime/'video-packages'))
     from yt_dlp import YoutubeDL
@@ -111,6 +161,7 @@ def main():
     height='' if quality==0 else f'[height<={quality}]'
     options={
       'format':f'bestvideo{height}+bestaudio/best{height}',
+      'allowed_extractors':['youtube'],
       'outtmpl':str(stage/'payload.%(ext)s'), 'noplaylist':True,
       'quiet':True,'no_warnings':True,'logger':Logger(),
       'progress_hooks':[progress], 'continuedl':True,'overwrites':False,
@@ -137,14 +188,16 @@ def main():
     safe=re.sub(r'[<>:"/\\|?*\x00-\x1f\x7f]','_',title).strip(' .').encode('utf-8')[:180].decode('utf-8','ignore').rstrip(' .') or 'YouTube'
     name=f'{safe} [{identifier}]{source.suffix}'
     emit('metadata',name=name,files=[name],total=source.stat().st_size)
-    publish(source,folder/name,identifier)
+    publish(source,folder/name,identifier,stage/'publish.json')
     emit('completed')
     # The destination is now durable. Do not retain a second full video in
     # application data; only private downloader payload files are removed.
-    for cached in stage.iterdir():
-        if cached.name.startswith('payload.') and cached.is_file() and not cached.is_symlink():
-            try:cached.unlink()
-            except OSError:pass
+    try:
+        for cached in stage.iterdir():
+            if cached.name.startswith('payload.') and cached.is_file() and not cached.is_symlink():
+                try:cached.unlink()
+                except OSError:pass
+    except OSError:pass
 
 if __name__=='__main__':
     try:main()

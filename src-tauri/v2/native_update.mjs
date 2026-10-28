@@ -45,6 +45,11 @@ export async function install(request, {healthTimeoutMs=90000} = {}) {
   const health=path.join(root,'health-'+nonce);
   const arg='--magnetron-update-health='+nonce;
   const backup=target+'.previous-'+nonce;
+  let previousBackup;
+  try{
+    const journal=path.join(root,'last-install.json');
+    if(fs.statSync(journal).size<8192)previousBackup=JSON.parse(fs.readFileSync(journal,'utf8')).previous;
+  }catch{}
   const launch=()=>{
     const command=platform.startsWith('macos-')?'/usr/bin/open':target;
     const args=platform.startsWith('macos-')?['-n',target,'--args',arg]:[arg];
@@ -52,7 +57,7 @@ export async function install(request, {healthTimeoutMs=90000} = {}) {
     child.on('error',()=>{});child.unref();
   };
   // Wait until MAGNETRON has stopped its engines and exited.
-  const exitDeadline=Date.now()+30000;
+  const exitDeadline=Date.now()+120000;
   while(true){
     try{process.kill(pid,0);}catch(error){if(error.code==='ESRCH')break;throw error;}
     if(Date.now()>exitDeadline)throw Error('Application did not exit');
@@ -87,6 +92,9 @@ export async function install(request, {healthTimeoutMs=90000} = {}) {
         fs.unlinkSync(health);
         // Preserve one previous installation for manual recovery, never user data.
         fs.writeFileSync(path.join(root,'last-install.json'),JSON.stringify({version:release.version,previous:replaced?backup:null}),{mode:0o600});
+        if(typeof previousBackup==='string' && previousBackup.startsWith(target+'.previous-') && /^[a-f0-9]{32}$/.test(previousBackup.slice((target+'.previous-').length))){
+          try{if(!fs.lstatSync(previousBackup).isSymbolicLink())fs.rmSync(previousBackup,{recursive:true,force:true});}catch{}
+        }
         return;
       }
       await pause(250);

@@ -26,6 +26,22 @@ class VideoSafety(unittest.TestCase):
             other=root/'user.txt';other.write_bytes(b'keep');m.STOP.set()
             with self.assertRaises(InterruptedError):m.publish(source,root/'output.mkv','abcdefgh_-1')
             self.assertEqual(sorted(p.name for p in root.iterdir()),['private','user.txt'])
+    def test_recovery_removes_only_the_original_owned_publication_partial(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=pathlib.Path(tmp);journal=root/'publish.json';partial=root/'.magnetron-abcdefgh_-1-fixture.part'
+            partial.write_bytes(b'interrupted copy');info=partial.stat()
+            record={'folder':str(root),'name':partial.name,'identity':[info.st_dev,info.st_ino]}
+            journal.write_text(json.dumps(record),encoding='utf-8')
+            m.clean_interrupted_publication(journal,root,'abcdefgh_-1')
+            self.assertFalse(partial.exists())
+            partial.write_bytes(b'unrelated replacement')
+            record['identity']=[-1,-1];journal.write_text(json.dumps(record),encoding='utf-8')
+            m.clean_interrupted_publication(journal,root,'abcdefgh_-1')
+            self.assertEqual(partial.read_bytes(),b'unrelated replacement')
+            outside=root/'keep.txt';outside.write_bytes(b'keep')
+            record['name']='../keep.txt';journal.write_text(json.dumps(record),encoding='utf-8')
+            m.clean_interrupted_publication(journal,root,'abcdefgh_-1')
+            self.assertEqual(outside.read_bytes(),b'keep')
     def test_limiter_can_be_interrupted_without_waiting_for_old_limit(self):
         m.RATE=1;m.NEXT=0
         task=type('Task',(),{})();done=threading.Event()
@@ -35,7 +51,7 @@ class VideoSafety(unittest.TestCase):
         thread=threading.Thread(target=throttle);thread.start();time.sleep(.02);m.STOP.set();thread.join(1)
         self.assertFalse(thread.is_alive());self.assertTrue(done.is_set())
     def test_real_bundled_mux_and_probe(self):
-        runtime=ROOT/('vendor/v2-runtime' if os.name=='nt' else 'vendor/native/v2')
+        runtime=pathlib.Path(os.environ.get('MAGNETRON_VIDEO_RUNTIME',str(ROOT/('vendor/v2-runtime' if os.name=='nt' else 'vendor/native/v2'))))
         tools=runtime/'video-tools';suffix='.exe' if os.name=='nt' else ''
         self.assertTrue((tools/('ffmpeg'+suffix)).is_file(),'Prepare the bundled video tools first')
         with tempfile.TemporaryDirectory() as tmp:

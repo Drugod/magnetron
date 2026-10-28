@@ -31,4 +31,11 @@ Write-Output "Installer upgrade from 0.8.0 to $Version preserves the application
 
 $runtime = Join-Path $destination 'v2/python.exe'
 & $runtime -I (Join-Path $PSScriptRoot 'test-package-contents.py') $destination
+if ($LASTEXITCODE -ne 0) { throw 'Installed package content checks failed' }
+$previousVideoRuntime=$env:MAGNETRON_VIDEO_RUNTIME
+try {
+    $env:MAGNETRON_VIDEO_RUNTIME=Join-Path $destination 'v2'
+    & $runtime -I (Join-Path $PSScriptRoot 'test-video.py')
+    if ($LASTEXITCODE -ne 0) { throw 'Installed video runtime checks failed' }
+} finally { $env:MAGNETRON_VIDEO_RUNTIME=$previousVideoRuntime }
 if ($LASTEXITCODE -ne 0) { throw 'Installed package content validation failed' }

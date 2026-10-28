@@ -945,6 +945,11 @@ if (isTauri())
   void listen<AppUpdateStatus>("app-update-ready", (e) =>
     displayAppUpdate(e.payload),
   );
+if (isTauri())
+  void listen<string>("app-update-install-error", (event) => {
+    $("#app-update-state").textContent = event.payload;
+    toast(translate(event.payload));
+  });
 $("#check-app-update").onclick = async () => {
   const button = $<HTMLButtonElement>("#check-app-update");
   button.disabled = true;

@@ -66,8 +66,12 @@ fn event(
     }
 }
 #[tauri::command]
-fn take_recovery_notices() -> Vec<String> {
-    crate::secure_fs::recovery_notices()
+fn take_recovery_notices(app: tauri::AppHandle) -> Vec<String> {
+    let mut notices = crate::secure_fs::recovery_notices();
+    if let Some(notice) = app_updates::take_install_notice(&app) {
+        notices.push(notice);
+    }
+    notices
 }
 #[tauri::command]
 fn list_favorites(state: State<AppState>) -> Result<Vec<Torrent>, String> {

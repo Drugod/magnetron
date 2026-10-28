@@ -53,3 +53,9 @@ YouTube accepts only canonical individual HTTPS video identities. Downloaded tit
 Native updates use the existing Ed25519 key. Both the app and detached installer verify the platform-specific official URL, version, size and digest. AppImage and Mac replacements preserve the previous installation until startup acknowledgement, restoring it on failure. Debian installation delegates privilege approval to polkit/dpkg; declining approval preserves the existing package. Desktop publisher certification (Apple Developer ID/Authenticode) is separate from update authenticity and is not configured.
 
 These new video and updater changes must pass the full matrix and installer checks before release. No production update has been published for them. Native GUI/polkit prompts and Apple Gatekeeper behaviour still need end-user feedback; they are not claimed as automated GUI validation.
+
+## Video dependency advisory check
+
+On October 28, 2026 the OSV PyPI query returned no known advisories for the pinned yt-dlp 2026.10.26, yt-dlp-ejs 0.8.0 and certifi 2026.10.23 wheels. The read-only audit is included in scheduled CI and preserves its response artifact. This is a point-in-time check, not an assertion that every native dependency is vulnerability-free.
+
+Node 24.22.1 is the upstream security release documented at https://nodejs.org/en/blog/release/v24.22.1 ; target binary hashes match its official release checksums. EJS invokes Node with the permission model enabled. The worker removes NODE_OPTIONS/NODE_PATH and permits only the YouTube extractor. FFmpeg has no network protocols enabled and only the required local demux/mux/parser paths are built.

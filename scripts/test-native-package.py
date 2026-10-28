@@ -22,6 +22,8 @@ runtime=resources/'v2';python=runtime/'bin/python3';worker=runtime/'worker.py'
 if not python.is_file() or not worker.is_file():raise SystemExit('Package is missing its runtime or worker')
 env=os.environ.copy();env['MAGNETRON_TEST_WORKER']=str(worker)
 subprocess.run([str(python),'-I',str(ROOT/'scripts/test-v2.py')],env=env,check=True)
+env['MAGNETRON_VIDEO_RUNTIME']=str(runtime)
+subprocess.run([str(python),'-I',str(ROOT/'scripts/test-video.py')],env=env,check=True)
 spec=importlib.util.spec_from_file_location('prepare_native',ROOT/'scripts/prepare-native.py');module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module);module.check_daemon_version(daemon)
 if sys.platform=='linux':
     packages=list((ROOT/'src-tauri/target/release/bundle/deb').glob('*.deb'))

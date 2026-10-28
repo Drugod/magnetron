@@ -79,3 +79,11 @@ jobs:
           path: |
             src-tauri/target/release/bundle/nsis/*-setup.exe
             artifacts/signed-update/windows-update.json
+      - uses: actions/upload-artifact@v4
+        if: github.event_name == 'workflow_dispatch' && inputs.sign_updates
+        with:
+          name: MAGNETRON-Windows-video-runtime
+          path: |
+            vendor/v2-runtime/video-tools/
+            vendor/v2-runtime/video-packages/
+            vendor/v2-runtime/video_worker.py
