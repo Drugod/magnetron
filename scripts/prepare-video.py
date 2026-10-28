@@ -34,7 +34,10 @@ def main():
                 if len(members)!=1:raise ValueError('Unexpected Node archive layout')
                 with tar.extractfile(members[0]) as f:output.write_bytes(f.read())
                 if output.name=='node':output.chmod(0o755)
-    source=base.fetch(LOCK['ffmpeg']);shutil.copy2(source,licenses/source.name)
+    source=ROOT/'third_party/archives/ffmpeg-9.0.2.tar.xz'
+    with source.open('rb') as f:
+        if hashlib.file_digest(f,'sha256').hexdigest()!=LOCK['ffmpeg']['sha256']:raise ValueError('Bundled FFmpeg source hash mismatch')
+    shutil.copy2(source,licenses/source.name)
     build=ROOT/'vendor/video-build'/key;build.mkdir(parents=True,exist_ok=True)
     stamp=hashlib.sha256((json.dumps(FLAGS)+source.name+LOCK['ffmpeg']['sha256']+key).encode()).hexdigest()
     marker=build/'build-key'
