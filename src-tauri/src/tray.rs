@@ -40,6 +40,7 @@ fn shutdown(app: tauri::AppHandle, installer: Option<std::path::PathBuf>) {
         state.discovery.pause().await;
         state.sharing.shutdown().await;
         state.v2_downloads.shutdown();
+        state.video_downloads.shutdown();
         state.downloads.shutdown().await;
         state.ed2k_downloads.shutdown().await;
         state.engine.shutdown().await;

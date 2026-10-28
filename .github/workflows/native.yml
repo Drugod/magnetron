@@ -49,6 +49,18 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev librsvg2-dev libayatana-appindicator3-dev patchelf xvfb
+      - uses: actions/cache@v4
+        with:
+          path: vendor/video-build
+          key: video-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/video-assets.json', 'scripts/prepare-video.py') }}
+      - name: Windows video compiler
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if (-not (Test-Path 'C:/msys64/mingw64/bin/gcc.exe')) {
+            & C:/msys64/usr/bin/bash.exe -lc 'pacman --noconfirm --needed -S mingw-w64-x86_64-gcc make'
+            if ($LASTEXITCODE -ne 0) { throw 'Video compiler setup failed' }
+          }
       - run: npm ci
       # Hosted Intel runners can have an unresolvable local hostname. aMuled
       # resolves it synchronously before opening its control socket. This entry
@@ -60,6 +72,7 @@ jobs:
           python -c "import socket; assert socket.gethostname() == 'localhost'; assert socket.getaddrinfo(socket.gethostname(), None)"
       - name: Prepare pinned native engines and licenses
         run: python scripts/prepare-native.py
+      - run: python scripts/test-video.py
       - run: python scripts/test-native-preparation.py
       - run: python scripts/test-engine-guard.py
       - run: python scripts/check-vendor-patches.py

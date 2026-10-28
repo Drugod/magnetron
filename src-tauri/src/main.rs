@@ -22,6 +22,7 @@ mod storage;
 mod torrent;
 mod tray;
 mod v2;
+mod video;
 use futures_util::{stream, StreamExt};
 use model::Torrent;
 use serde::Serialize;
@@ -39,6 +40,7 @@ struct AppState {
     ed2k_downloads: Arc<ed2k_downloads::Downloads>,
     sharing: Arc<sharing::Sharing>,
     v2_downloads: Arc<v2::Downloads>,
+    video_downloads: Arc<v2::Downloads>,
 }
 #[derive(Clone, Serialize)]
 struct SearchEvent {
@@ -125,7 +127,8 @@ async fn update_limits(state: &AppState) -> Result<(), String> {
     let bt = active(state.downloads.list()) || state.sharing.bt_active();
     let ed = active(state.ed2k_downloads.list()) || state.sharing.ed_active();
     let v2 = state.v2_downloads.active();
-    let groups = (bt as u32 + ed as u32 + v2 as u32).max(1);
+    let video = state.video_downloads.active();
+    let groups = (bt as u32 + ed as u32 + v2 as u32 + video as u32).max(1);
     let portion = |n: u32| if n == 0 { 0 } else { (n / groups).max(1) };
     let (down, up) = (
         portion(cfg.download_limit_kib),
@@ -148,6 +151,7 @@ async fn update_limits(state: &AppState) -> Result<(), String> {
         other(cfg.upload_limit_kib, bt_up),
     );
     state.v2_downloads.set_limits(down, up);
+    state.video_downloads.set_limits(down, 0);
     state.ed2k_downloads.set_limits(down, up).await
 }
 #[tauri::command]
@@ -189,6 +193,7 @@ fn list_downloads(state: State<AppState>) -> Vec<downloads::Download> {
     let mut rows = state.downloads.list();
     rows.extend(state.ed2k_downloads.list());
     rows.extend(state.v2_downloads.list());
+    rows.extend(state.video_downloads.list());
     rows
 }
 #[tauri::command]
@@ -210,6 +215,20 @@ async fn add_download(
         return Err("Elige primero la carpeta de descarga en Ajustes".into());
     }
     update_limits(&state).await?;
+    if uri.starts_with("https://") {
+        let quality = state
+            .storage
+            .lock()
+            .map_err(|e| e.to_string())?
+            .settings()?
+            .video_quality;
+        return state.video_downloads.add_quality(
+            uri,
+            name,
+            std::path::PathBuf::from(folder),
+            quality,
+        );
+    }
     if v2::pure(&uri) {
         return state
             .v2_downloads
@@ -232,6 +251,9 @@ async fn remove_download(
     delete_files: bool,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
+    if id.starts_with("youtube:") {
+        return state.video_downloads.remove(&id, delete_files);
+    }
     if id.starts_with("bt2:") {
         return state.v2_downloads.remove(&id, delete_files);
     }
@@ -247,6 +269,9 @@ async fn download_action(
     action: String,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
+    if id.starts_with("youtube:") {
+        return state.video_downloads.action(&id, &action);
+    }
     if id.starts_with("bt2:") {
         return state.v2_downloads.action(&id, &action);
     }
@@ -257,7 +282,9 @@ async fn download_action(
 }
 #[tauri::command]
 async fn open_download_folder(id: String, state: State<'_, AppState>) -> Result<(), String> {
-    let folder = if id.starts_with("bt2:") {
+    let folder = if id.starts_with("youtube:") {
+        state.video_downloads.folder(&id)?
+    } else if id.starts_with("bt2:") {
         state.v2_downloads.folder(&id)?
     } else if id.starts_with("ed2k:") {
         state.ed2k_downloads.folder(&id)?
@@ -683,6 +710,9 @@ fn main() {
             let sharing = sharing::Sharing::new(downloads.clone(), ed2k_downloads.clone());
             let v2_downloads = v2::Downloads::new(runtime.clone(), dir.join("v2-downloads"))
                 .map_err(std::io::Error::other)?;
+            let video_downloads =
+                v2::Downloads::new_video(runtime.clone(), dir.join("video-downloads"))
+                    .map_err(std::io::Error::other)?;
             let initial_shares = storage
                 .settings()
                 .map_err(std::io::Error::other)?
@@ -701,6 +731,7 @@ fn main() {
                 ed2k_downloads,
                 sharing,
                 v2_downloads,
+                video_downloads,
             });
             tray::setup(app.handle())?;
             if app_updates::configured() {

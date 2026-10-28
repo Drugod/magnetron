@@ -159,7 +159,7 @@ setupViews();
 const downloader = setupDownloads(toast);
 $("#settings-form").insertAdjacentHTML(
   "afterbegin",
-  `<h3>Descargas</h3><label for="download-folder">Carpeta de descarga</label><div class="folder-setting"><input id="download-folder" name="download_folder" readonly placeholder="Se preguntará en la primera descarga"><button type="button" id="choose-default-folder" class="text-button">Elegir carpeta</button><button type="button" id="reset-default-folder" class="text-button">Quitar</button></div><p class="muted">Los archivos se guardan directamente aquí, sin carpetas añadidas por MAGNETRON.</p><label class="setting-row">Límite de bajada (KiB/s)<input name="download_limit_kib" type="number" min="0" max="1048576" step="1" required></label><label class="setting-row">Límite de subida (KiB/s)<input name="upload_limit_kib" type="number" min="0" max="1048576" step="1" required></label><p class="muted">0 = sin límite. Mínimo limitado: 32 KiB/s. Se reparte entre BitTorrent y eD2k cuando ambas redes están activas.</p>`,
+  `<h3>Descargas</h3><label class="setting-row"><span>Calidad de YouTube</span><select name="video_quality"><option value="0">Mejor disponible</option><option value="2160">2160p</option><option value="1440">1440p</option><option value="1080">1080p</option><option value="720">720p</option><option value="480">480p</option><option value="360">360p</option></select></label><p class="muted">Se descargará hasta la calidad elegida, según lo disponible en el vídeo.</p><label for="download-folder">Carpeta de descarga</label><div class="folder-setting"><input id="download-folder" name="download_folder" readonly placeholder="Se preguntará en la primera descarga"><button type="button" id="choose-default-folder" class="text-button">Elegir carpeta</button><button type="button" id="reset-default-folder" class="text-button">Quitar</button></div><p class="muted">Los archivos se guardan directamente aquí, sin carpetas añadidas por MAGNETRON.</p><label class="setting-row">Límite de bajada (KiB/s)<input name="download_limit_kib" type="number" min="0" max="1048576" step="1" required></label><label class="setting-row">Límite de subida (KiB/s)<input name="upload_limit_kib" type="number" min="0" max="1048576" step="1" required></label><p class="muted">0 = sin límite. Mínimo limitado: 32 KiB/s. Se reparte entre BitTorrent y eD2k cuando ambas redes están activas.</p>`,
 );
 
 for (const name of ["ubuntu", "debian", "archive"])
@@ -516,7 +516,7 @@ async function search(query: string) {
   query = query.trim();
   if (!query) return;
   showView("search");
-  if (/^(ed2k:\/\/|magnet:)/i.test(query)) {
+  if (/^(ed2k:\/\/|magnet:|https:\/\/)/i.test(query)) {
     await downloader.addLinks(query);
     return;
   }

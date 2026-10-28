@@ -225,7 +225,7 @@ export function setupDownloads(notify: (s: string) => void) {
           }
         };
         c[0].title = d.folder;
-        c[1].textContent = d.id.startsWith("ed2k:")
+        c[1].textContent = d.id.startsWith("youtube:") ? "YouTube" : d.id.startsWith("ed2k:")
           ? "eD2k"
           : d.id.startsWith("bt2:")
             ? "BitTorrent v2"

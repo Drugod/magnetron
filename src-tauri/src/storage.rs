@@ -12,6 +12,7 @@ pub struct Settings {
     pub kad: bool,
     pub auto_sources: bool,
     pub download_folder: String,
+    pub video_quality: u32,
     pub download_limit_kib: u32,
     pub upload_limit_kib: u32,
     pub shared_folders: Vec<crate::sharing::Folder>,
@@ -39,6 +40,7 @@ impl Default for Settings {
             kad: true,
             auto_sources: true,
             download_folder: String::new(),
+            video_quality: 1080,
             download_limit_kib: 0,
             upload_limit_kib: 0,
             shared_folders: vec![],
@@ -88,6 +90,9 @@ impl Settings {
             {
                 return Err("Carpeta compartida inválida".into());
             }
+        }
+        if !matches!(self.video_quality, 0 | 360 | 480 | 720 | 1080 | 1440 | 2160) {
+            return Err("Calidad de vídeo inválida".into());
         }
         for limit in [self.download_limit_kib, self.upload_limit_kib] {
             if limit != 0 && !(32..=1_048_576).contains(&limit) {

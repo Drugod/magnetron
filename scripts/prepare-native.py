@@ -118,5 +118,6 @@ def main():
     run(python,'-I','-c','import libtorrent,ssl; print(libtorrent.version)')
     daemon=native/('amule/aMule.app/Contents/MacOS/amuled' if system=='macos' else 'amule/bin/amuled')
     check_daemon_version(daemon)
+    run(sys.executable,ROOT/'scripts/prepare-video.py')
     print('Native engines prepared for '+key)
 if __name__=='__main__':main()

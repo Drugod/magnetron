@@ -44,6 +44,18 @@ jobs:
       - name: Resolve disposable macOS runner hostname
         if: runner.os == 'macOS'
         run: sudo hostname localhost
+      - uses: actions/cache@v4
+        with:
+          path: vendor/video-build
+          key: video-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/video-assets.json', 'scripts/prepare-video.py') }}
+      - name: Windows video compiler
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if (-not (Test-Path 'C:/msys64/mingw64/bin/gcc.exe')) {
+            & C:/msys64/usr/bin/bash.exe -lc 'pacman --noconfirm --needed -S mingw-w64-x86_64-gcc make'
+            if ($LASTEXITCODE -ne 0) { throw 'Video compiler setup failed' }
+          }
       - run: npm ci
       - run: npm run build
       - name: Windows engines
@@ -57,6 +69,8 @@ jobs:
       - name: Native engines
         if: runner.os != 'Windows'
         run: python scripts/prepare-native.py
+      - name: Verify bundled video tools
+        run: python scripts/test-video.py
       - name: Linux recovery soak
         if: runner.os == 'Linux'
         run: xvfb-run -a python scripts/test-reliability-soak.py --minutes 30

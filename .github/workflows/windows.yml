@@ -21,12 +21,25 @@ jobs:
         with:
           workspaces: src-tauri -> target
           cache-on-failure: "true"
+      - uses: actions/cache@v4
+        with:
+          path: vendor/video-build
+          key: video-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/video-assets.json', 'scripts/prepare-video.py') }}
+      - name: Windows video compiler
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if (-not (Test-Path 'C:/msys64/mingw64/bin/gcc.exe')) {
+            & C:/msys64/usr/bin/bash.exe -lc 'pacman --noconfirm --needed -S mingw-w64-x86_64-gcc make'
+            if ($LASTEXITCODE -ne 0) { throw 'Video compiler setup failed' }
+          }
       - run: npm ci
       - run: node --test scripts/test-sign-update.mjs
       - run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-engine.ps1
       - run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-ed2k.ps1
       - run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-v2.ps1
       - run: ./vendor/v2-runtime/python.exe -I scripts/test-native-preparation.py
+      - run: ./vendor/v2-runtime/python.exe -I scripts/test-video.py
       - run: ./vendor/v2-runtime/python.exe -I scripts/test-v2.py
       - run: npm test
       - run: npm run build

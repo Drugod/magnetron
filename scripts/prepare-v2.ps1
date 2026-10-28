@@ -23,3 +23,6 @@ Copy-Item -LiteralPath src-tauri/v2/worker.py -Destination vendor/v2-runtime/wor
 if ($LASTEXITCODE -ne 0) { throw 'El motor v2 no arranca' }
 
 Copy-Item -LiteralPath src-tauri/v2/engine_guard.py -Destination vendor/v2-runtime/engine_guard.py -Force
+
+& ./vendor/v2-runtime/python.exe scripts/prepare-video.py
+if ($LASTEXITCODE -ne 0) { throw "No se pudieron preparar las herramientas de vídeo" }

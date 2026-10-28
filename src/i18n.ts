@@ -25,6 +25,12 @@ let appearance: Appearance = ["light", "dark"].includes(
 export const getLanguage = () => language;
 export const locale = () => (language === "en" ? "en-GB" : "es-ES");
 const pairs: Record<string, string> = {
+  "Calidad de YouTube": "YouTube quality",
+  "Mejor disponible": "Best available",
+  "Se descargará hasta la calidad elegida, según lo disponible en el vídeo.": "Downloads up to the selected quality, depending on what the video offers.",
+  "Pega enlaces eD2k, magnet o YouTube, uno por línea": "Paste eD2k, magnet or YouTube links, one per line",
+  "YouTube: se ha recuperado la última copia válida de la cola. Los archivos descargados se conservan.": "YouTube: the last valid queue checkpoint was recovered. Downloaded files are preserved.",
+  "YouTube: no se pudo recuperar la cola. Se ha conservado una copia de los datos dañados y no se han borrado archivos descargados.": "YouTube: the queue could not be recovered. A copy of the damaged data was preserved and downloaded files were not deleted.",
   Entendido: "Understood",
   "BitTorrent: se ha recuperado la última copia válida de la cola. Los archivos descargados se conservan.":
     "BitTorrent: the last valid queue checkpoint was recovered. Downloaded files are preserved.",

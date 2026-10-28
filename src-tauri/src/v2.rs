@@ -13,6 +13,8 @@ use std::{
 struct Entry {
     row: Download,
     files: Vec<PathBuf>,
+    #[serde(default)]
+    quality: u32,
 }
 struct Running {
     child: crate::engine::OwnedProcess,
@@ -21,6 +23,7 @@ struct Running {
     last_limits: (u32, u32),
 }
 pub struct Downloads {
+    video: bool,
     runtime: PathBuf,
     data: PathBuf,
     records: Mutex<BTreeMap<String, Entry>>,
@@ -93,10 +96,16 @@ fn stop(mut job: Running) {
 }
 impl Downloads {
     pub fn new(runtime: PathBuf, data: PathBuf) -> Result<Arc<Self>, String> {
-        std::fs::create_dir_all(&data).map_err(|e| e.to_string())?;
+        Self::new_backend(runtime, data, false)
+    }
+    pub fn new_video(runtime: PathBuf, data: PathBuf) -> Result<Arc<Self>, String> {
+        Self::new_backend(runtime, data, true)
+    }
+    fn new_backend(runtime: PathBuf, data: PathBuf, video: bool) -> Result<Arc<Self>, String> {
+        crate::secure_fs::private_dir(&data)?;
         let file = data.join("downloads.json");
         let mut records: BTreeMap<String, Entry> =
-            crate::secure_fs::load_queue(&file, "BitTorrent v2")?;
+            crate::secure_fs::load_queue(&file, if video { "YouTube" } else { "BitTorrent v2" })?;
         for e in records.values_mut() {
             if !matches!(e.row.state.as_str(), "completed" | "cancelled") {
                 e.row.state = "paused".into()
@@ -105,6 +114,7 @@ impl Downloads {
             e.row.upload_speed = 0;
         }
         Ok(Arc::new(Self {
+            video,
             runtime,
             data,
             records: Mutex::new(records),
@@ -172,7 +182,23 @@ impl Downloads {
         name: String,
         folder: PathBuf,
     ) -> Result<String, String> {
-        let (id, uri) = identity(&uri)?;
+        self.add_quality(uri, name, folder, 1080)
+    }
+    pub fn add_quality(
+        self: &Arc<Self>,
+        uri: String,
+        name: String,
+        folder: PathBuf,
+        quality: u32,
+    ) -> Result<String, String> {
+        if !matches!(quality, 0 | 360 | 480 | 720 | 1080 | 1440 | 2160) {
+            return Err("Calidad de vídeo inválida".into());
+        }
+        let (id, uri) = if self.video {
+            crate::video::identity(&uri)?
+        } else {
+            identity(&uri)?
+        };
         let _guard = self.control.lock().unwrap();
         if self.records.lock().unwrap().contains_key(&id) {
             return Ok(id);
@@ -195,6 +221,7 @@ impl Downloads {
                     error: None,
                 },
                 files: vec![],
+                quality,
             },
         );
         self.save()?;
@@ -219,12 +246,16 @@ impl Downloads {
         let staging = self
             .data
             .join("staging")
-            .join(id.trim_start_matches("bt2:"));
+            .join(id.split_once(':').ok_or("Identidad inválida")?.1);
         std::fs::create_dir_all(&staging).map_err(|e| e.to_string())?;
         let mut cmd = Command::new(crate::platform::python(&self.runtime));
         cmd.arg("-I")
             .arg("-u")
-            .arg(self.runtime.join("worker.py"))
+            .arg(self.runtime.join(if self.video {
+                "video_worker.py"
+            } else {
+                "worker.py"
+            }))
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null());
@@ -237,7 +268,7 @@ impl Downloads {
         let mut input = child.stdin.take().unwrap();
         let output = child.stdout.take().unwrap();
         let (down, up) = *self.limits.lock().unwrap();
-        writeln!(input,"{}",serde_json::json!({"uri":e.row.uri,"folder":e.row.folder,"staging":staging,"resume":resume,"down":down,"up":up})).map_err(|e|e.to_string())?;
+        writeln!(input,"{}",serde_json::json!({"uri":e.row.uri,"folder":e.row.folder,"staging":staging,"resume":resume,"down":down,"up":up,"quality":e.quality})).map_err(|e|e.to_string())?;
         input.flush().map_err(|e| e.to_string())?;
         let token = rand::random::<u64>();
         self.jobs.lock().unwrap().insert(
@@ -290,6 +321,12 @@ impl Downloads {
                             break;
                         }
                         e.files = files;
+                        if this.video {
+                            if let Some(name) = message["name"].as_str().filter(|n| n.len() <= 1024)
+                            {
+                                e.row.name = name.to_owned();
+                            }
+                        }
                         e.row.total_bytes = message["total"].as_u64().unwrap_or(0);
                     }
                     Some("progress") => {
