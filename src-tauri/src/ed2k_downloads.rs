@@ -1181,7 +1181,11 @@ mod tests {
                 let ready = ready.clone();
                 tokio::spawn(async move {
                     loop {
-                        if socket.read_u8().await.ok() != Some(0xe3) {
+                        let Ok(protocol) = socket.read_u8().await else {
+                            break;
+                        };
+                        if protocol != 0xe3 {
+                            eprintln!("Controlled eD2k server: unsupported protocol={protocol}");
                             break;
                         }
                         let Ok(len) = socket.read_u32_le().await else {
@@ -1205,7 +1209,10 @@ mod tests {
                             1 => {
                                 let mut p = vec![0x40];
                                 p.extend_from_slice(&id.to_le_bytes());
-                                p.extend_from_slice(&0x119u32.to_le_bytes());
+                                // This fixture reads plain eD2k frames only. Do not
+                                // advertise compression (bit 0), or aMule may pack
+                                // its file publication and get disconnected here.
+                                p.extend_from_slice(&0x118u32.to_le_bytes());
                                 Some(p)
                             }
                             0x19 | 0x23 => {
