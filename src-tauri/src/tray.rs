@@ -45,7 +45,14 @@ fn shutdown(app: tauri::AppHandle, installer: Option<std::path::PathBuf>) {
         state.ed2k_downloads.shutdown().await;
         state.engine.shutdown().await;
         if let Some(path) = installer {
-            if std::process::Command::new(path).spawn().is_err() {
+            #[cfg(windows)]
+            let result = std::process::Command::new(path)
+                .spawn()
+                .map(|_| ())
+                .map_err(|e| e.to_string());
+            #[cfg(unix)]
+            let result = crate::app_updates::launch_native(&app, &path);
+            if result.is_err() {
                 app.state::<TrayState>()
                     .exiting
                     .store(false, Ordering::SeqCst);

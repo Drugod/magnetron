@@ -25,6 +25,7 @@ let appearance: Appearance = ["light", "dark"].includes(
 export const getLanguage = () => language;
 export const locale = () => (language === "en" ? "en-GB" : "es-ES");
 const pairs: Record<string, string> = {
+  "Las actualizaciones se comprueban automáticamente.": "Updates are checked automatically.",
   "Calidad de YouTube": "YouTube quality",
   "Mejor disponible": "Best available",
   "Se descargará hasta la calidad elegida, según lo disponible en el vídeo.": "Downloads up to the selected quality, depending on what the video offers.",

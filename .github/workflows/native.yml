@@ -3,6 +3,12 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+    inputs:
+      sign_updates:
+        description: Sign updater manifests for this reviewed build (does not publish)
+        required: false
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -76,6 +82,7 @@ jobs:
       - run: python scripts/test-native-preparation.py
       - run: python scripts/test-engine-guard.py
       - run: python scripts/check-vendor-patches.py
+      - run: node --test scripts/test-native-update.mjs scripts/test-sign-update.mjs
       - run: npm test
       - run: npm run build
       - name: Test Rust on Linux
@@ -103,6 +110,11 @@ jobs:
         run: ditto -c -k --keepParent src-tauri/target/release/bundle/macos/MAGNETRON.app artifacts/MAGNETRON-macOS-app.zip
       - name: Generate checksums
         run: python scripts/package-native.py
+      - name: Sign native update manifests
+        if: github.event_name == 'workflow_dispatch' && inputs.sign_updates
+        env:
+          MAGNETRON_UPDATE_PRIVATE_KEY: ${{ secrets.MAGNETRON_UPDATE_PRIVATE_KEY }}
+        run: python scripts/sign-native-updates.py
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
@@ -112,4 +124,6 @@ jobs:
             src-tauri/target/release/bundle/appimage/*.AppImage
             src-tauri/target/release/bundle/dmg/*.dmg
             artifacts/MAGNETRON-macOS-app.zip
+            artifacts/MAGNETRON_*_macos-*.app.zip
+            artifacts/*-update.json
             artifacts/SHA256SUMS-native.txt

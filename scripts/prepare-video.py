@@ -46,7 +46,7 @@ def main():
         with tarfile.open(source) as tar:tar.extractall(build,filter='data')
         work=build/'ffmpeg-9.0.2'
         flags=FLAGS+(['--target-os=mingw32','--arch=x86_64','--extra-ldflags=-static'] if system=='windows' else [])
-        script='set -eu\n./configure '+shlex.join(flags)+'\nmake -j'+str(min(os.cpu_count() or 2,4))+' ffmpeg ffprobe\n'
+        script='set -eu\n./configure '+shlex.join(flags)+'\nmake -j'+str(min(os.cpu_count() or 2,4))+' ffmpeg'+exe+' ffprobe'+exe+'\n'
         # Actual newlines, never a shell command constructed from downloaded metadata.
         if system=='windows':
             bash=pathlib.Path('C:/msys64/usr/bin/bash.exe')
@@ -64,5 +64,6 @@ def main():
         shutil.copy2(work/name,licenses/('FFmpeg-'+name))
     (licenses/'FFmpeg-build.json').write_text(json.dumps(dict(source=LOCK['ffmpeg'],configure=FLAGS,platform=key),indent=2)+'\n',encoding='utf-8')
     shutil.copy2(ROOT/'src-tauri/v2/video_worker.py',runtime/'video_worker.py')
+    shutil.copy2(ROOT/'src-tauri/v2/native_update.mjs',runtime/'native_update.mjs')
     print('Pinned YouTube tools prepared for '+key)
 if __name__=='__main__':main()

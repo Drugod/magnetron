@@ -905,7 +905,7 @@ setInterval(() => void refreshIndex(), 3000);
 
 $("#settings-form .dialog-actions").insertAdjacentHTML(
   "beforebegin",
-  `<details class="advanced-settings"><summary><span>Actualizaciones de MAGNETRON</span> · <span id="installed-app-version"></span></summary><p id="app-update-state" class="muted" role="status">Las actualizaciones se comprueban automáticamente en Windows.</p><div class="dialog-actions"><button type="button" id="check-app-update" class="text-button">Comprobar actualizaciones</button><button type="button" id="install-app-update" class="text-button" hidden>Instalar actualización y cerrar</button></div></details>`,
+  `<details class="advanced-settings"><summary><span>Actualizaciones de MAGNETRON</span> · <span id="installed-app-version"></span></summary><p id="app-update-state" class="muted" role="status">Las actualizaciones se comprueban automáticamente.</p><div class="dialog-actions"><button type="button" id="check-app-update" class="text-button">Comprobar actualizaciones</button><button type="button" id="install-app-update" class="text-button" hidden>Instalar actualización y cerrar</button></div></details>`,
 );
 // Read the installed binary version, independently of available updates.
 $("#installed-app-version").textContent = `v${packageInfo.version}`;

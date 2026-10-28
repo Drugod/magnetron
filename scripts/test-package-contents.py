@@ -3,7 +3,7 @@ import hashlib,pathlib,sys
 root=pathlib.Path(sys.argv[1]).resolve()
 required=[
  'licenses/MAGNETRON-GPL-3.0.txt','licenses/librqbit-LICENSE.txt','licenses/THIRD-PARTY-NOTICES.txt',
- 'v2/worker.py','v2/engine_guard.py','v2/video_worker.py',
+ 'v2/worker.py','v2/engine_guard.py','v2/video_worker.py','v2/native_update.mjs',
  'v2/video-tools/licenses/Node-LICENSE.txt','v2/video-tools/licenses/ffmpeg-9.0.2.tar.xz',
  'v2/video-tools/licenses/FFmpeg-COPYING.LGPLv2.1','v2/video-tools/licenses/FFmpeg-build.json',
  'v2/video-packages/yt_dlp/__init__.py','v2/video-packages/yt_dlp_ejs/__init__.py',

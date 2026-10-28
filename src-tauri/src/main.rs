@@ -734,6 +734,7 @@ fn main() {
                 video_downloads,
             });
             tray::setup(app.handle())?;
+            app_updates::confirm_startup(app.handle());
             if app_updates::configured() {
                 let handle = app.handle().clone();
                 tauri::async_runtime::spawn(async move {
