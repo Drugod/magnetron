@@ -52,7 +52,7 @@ YouTube accepts only canonical individual HTTPS video identities. Downloaded tit
 
 Native updates use the existing Ed25519 key. Both the app and detached installer verify the platform-specific official URL, version, size and digest. AppImage and Mac replacements preserve the previous installation until startup acknowledgement, restoring it on failure. Debian installation delegates privilege approval to polkit/dpkg; declining approval preserves the existing package. Desktop publisher certification (Apple Developer ID/Authenticode) is separate from update authenticity and is not configured.
 
-These new video and updater changes must pass the full matrix and installer checks before release. No production update has been published for them. Native GUI/polkit prompts and Apple Gatekeeper behaviour still need end-user feedback; they are not claimed as automated GUI validation.
+The video/updater changes passed the full candidate matrix and installer checks at 05295dd; see [0.9.0 verification](VERIFICATION-0.9.0.md). No production update has been published for them. Native GUI/polkit prompts and Apple Gatekeeper behaviour still need end-user feedback; they are not claimed as automated GUI validation.
 
 ## Video dependency advisory check
 
@@ -63,3 +63,7 @@ Node 24.22.1 is the upstream security release documented at https://nodejs.org/e
 ## Public video smoke test
 
 On October 28, 2026 the Windows packaged video tools successfully fetched metadata for a public short video (25 formats), downloaded it at the selected 360p maximum, probed its video stream and published one 474,561-byte file directly in the selected test directory. No cookies/account were used and the temporary payload was deleted after verification. The previous upstream test-video URL had become unavailable; the opt-in script accepts a replacement URL. This demonstrates one public-service transfer, not universal YouTube availability.
+
+## Final candidate acceptance
+
+The 0.9.0 application build at 05295dd passed all Windows/native package, signature, security, accessibility and updater-recovery gates. The final four-runner prolonged check passed 886 controlled scenarios over at least 30 minutes per runner. The controlled eD2k server now advertises only its supported framing and waits for the actual connection state, not the periodic publication timer. All delivered update assets were independently rehashed and verified with the embedded public key. See VERIFICATION-0.9.0.md for exact run links, counts and limitations. The acceptance closure changes documentation only.

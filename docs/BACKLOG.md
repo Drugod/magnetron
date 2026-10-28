@@ -10,18 +10,18 @@ Updated October 28, 2026. Published baseline: 0.8.1. Version 0.9.0 is a working 
 - Crash containment, atomic private queues with checkpoint recovery, real engine restart, dependency fixes and browser accessibility corrections.
 - Four-platform 30-minute recovery matrix and package checks passed at 1d47bd5. See SECURITY-REVIEW.md for exact evidence and limits.
 
-## Implemented for 0.9.0; acceptance still required
+## Verified for the 0.9.0 candidate
 
 - Installed version visible in Settings / MAGNETRON updates.
 - Individual YouTube links through the existing input and download list; default maximum quality in Settings.
 - Private pinned video tools, local-only FFmpeg build, no user-installed dependencies.
 - Signed native update manifests and installers for Linux AppImage/Debian and both Mac architectures, with startup acknowledgement and application recovery.
 
-## Required before publication
+## Delivery status and publication checkpoint
 
-- Pass fresh video, updater, security, accessibility, native package and recovery checks on the final candidate.
-- Exercise signed native package artifacts, not only synthetic signature fixtures.
-- Prepare final versioned installers, matching source, manifests, checksums and release notes.
+- Completed: fresh video, updater, security, accessibility, native package and four-platform 30-minute recovery checks passed at 05295dd.
+- Completed: actual signed package bytes were verified for all five update channels; package/install/runtime checks passed.
+- Completed: versioned installers, matching source, manifests and release notes are prepared; final upload-set checksums are generated alongside the kit. See [verification](VERIFICATION-0.9.0.md).
 - Obtain owner approval for the concrete new GitHub release; publish only after acceptance.
 - Prepare SourceForge profile and upload set after the GitHub release.
 
