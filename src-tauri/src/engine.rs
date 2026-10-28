@@ -273,9 +273,29 @@ impl Engine {
             .build()
             .map_err(|e| e.to_string())?;
         let mut ready = false;
-        for _ in 0..100 {
+        // Cold .NET startup can exceed 15 seconds on Intel macOS. Bound the
+        // whole readiness phase, not a count of requests with 45-second timeouts.
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(60);
+        while tokio::time::Instant::now() < deadline {
+            let exited = self
+                .child
+                .lock()
+                .map_err(|e| e.to_string())?
+                .as_mut()
+                .ok_or("El motor se ha detenido")?
+                .try_wait()
+                .map_err(|e| e.to_string())?
+                .is_some();
+            if exited {
+                return Err("El motor terminó antes de estar disponible".into());
+            }
             if client
                 .post(format!("{base}/UI/Dashboard"))
+                .timeout(
+                    deadline
+                        .saturating_duration_since(tokio::time::Instant::now())
+                        .min(Duration::from_secs(2)),
+                )
                 .form(&[("password", &password)])
                 .send()
                 .await
