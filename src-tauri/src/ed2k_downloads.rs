@@ -1163,19 +1163,22 @@ mod tests {
     async fn test_server(
         ip: std::net::Ipv4Addr,
         source: Arc<Mutex<Option<(Vec<u8>, u16)>>>,
-    ) -> (u16, tokio::task::JoinHandle<()>) {
+    ) -> (u16, tokio::task::JoinHandle<()>, Arc<tokio::sync::Notify>) {
         use tokio::io::{AsyncReadExt, AsyncWriteExt};
         let listener = tokio::net::TcpListener::bind((ip, 0)).await.unwrap();
         let port = listener.local_addr().unwrap().port();
+        let published = Arc::new(tokio::sync::Notify::new());
+        let ready = published.clone();
         let job = tokio::spawn(async move {
-            let mut client_id = 0x281e140au32;
             loop {
                 let Ok((mut socket, _)) = listener.accept().await else {
                     break;
                 };
-                client_id += 0x01000000;
-                let id = client_id;
+                // A high eD2k ID is the actual IPv4 address in wire order;
+                // invented per-client IPs break peer identity/secure handshakes.
+                let id = u32::from_le_bytes(ip.octets());
                 let source = source.clone();
+                let ready = ready.clone();
                 tokio::spawn(async move {
                     loop {
                         if socket.read_u8().await.ok() != Some(0xe3) {
@@ -1190,6 +1193,13 @@ mod tests {
                         let mut payload = vec![0; len as usize];
                         if socket.read_exact(&mut payload).await.is_err() {
                             break;
+                        }
+                        if payload[0] == 0x15 {
+                            if source.lock().unwrap().as_ref().is_some_and(|(hash, _)| {
+                                hash.len() == 16 && payload.windows(16).any(|p| p == hash)
+                            }) {
+                                ready.notify_one();
+                            }
                         }
                         let response = match payload[0] {
                             1 => {
@@ -1232,7 +1242,7 @@ mod tests {
                 });
             }
         });
-        (port, job)
+        (port, job, published)
     }
     fn server_met(data: &Path, ip: std::net::Ipv4Addr, port: u16) {
         let mut met = vec![0xe0];
@@ -1286,7 +1296,7 @@ mod tests {
         let std::net::IpAddr::V4(ip) = socket.local_addr().unwrap().ip() else {
             panic!("IPv4 required")
         };
-        let (port, server_job) = test_server(ip, Arc::new(Mutex::new(None))).await;
+        let (port, server_job, _) = test_server(ip, Arc::new(Mutex::new(None))).await;
         server_met(&engine.data, ip, port);
         let uri = crate::ed2k::link("test.bin", 12345, &"a".repeat(32));
         let result = engine.add(uri, "test.bin".into(), root.clone()).await;
@@ -1343,7 +1353,7 @@ mod tests {
             panic!("IPv4 required")
         };
         let source = Arc::new(Mutex::new(None));
-        let (server_port, server_job) = test_server(ip, source.clone()).await;
+        let (server_port, server_job, published) = test_server(ip, source.clone()).await;
         let exe = isolated_engine(&root);
         // wxWidgets uses a global Windows mutex regardless of --config-dir.
         // Test clients use distinct fixture mutexes; the distributed engine remains official.
@@ -1439,6 +1449,11 @@ mod tests {
                 .client
                 .request(0x4a, vec![])
                 .await?;
+            // Hashing alone is insufficient: the source must have completed
+            // login and published the file before the client first asks for it.
+            tokio::time::timeout(Duration::from_secs(30), published.notified())
+                .await
+                .map_err(|_| "Controlled seed did not publish its file")?;
             let uri = crate::ed2k::link("MAGNETRON-test.bin", payload.len() as u64, &hash);
             let id = client
                 .add(uri.clone(), "MAGNETRON-test.bin".into(), root.clone())
