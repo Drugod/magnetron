@@ -3,6 +3,12 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+    inputs:
+      sign_updates:
+        description: Sign this candidate installer (does not publish)
+        required: false
+        type: boolean
+        default: false
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -52,7 +58,24 @@ jobs:
         run: |
           $version=(Get-Content package.json -Raw | ConvertFrom-Json).version
           ./scripts/test-windows-upgrade.ps1 -Installer "src-tauri/target/release/bundle/nsis/MAGNETRON_${version}_x64-setup.exe" -Version $version
+      - name: Sign and validate candidate installer
+        if: github.event_name == 'workflow_dispatch' && inputs.sign_updates
+        shell: pwsh
+        env:
+          MAGNETRON_UPDATE_PRIVATE_KEY: ${{ secrets.MAGNETRON_UPDATE_PRIVATE_KEY }}
+        run: |
+          $version=(Get-Content package.json -Raw | ConvertFrom-Json).version
+          $installer="src-tauri/target/release/bundle/nsis/MAGNETRON_${version}_x64-setup.exe"
+          New-Item -ItemType Directory -Force artifacts/signed-update | Out-Null
+          Copy-Item -LiteralPath $installer -Destination artifacts/signed-update/
+          node scripts/sign-update.mjs sign-env $installer $version "https://github.com/Drugod/magnetron/releases/download/v$version/MAGNETRON_${version}_x64-setup.exe" artifacts/signed-update/windows-update.json
+          if ($LASTEXITCODE -ne 0) { throw 'Candidate signing failed' }
+          $env:MAGNETRON_UPDATE_TEST_DIR=(Resolve-Path artifacts/signed-update).Path
+          cargo test --locked --manifest-path src-tauri/Cargo.toml validates_real_signed_release_before_installation -- --ignored
+          if ($LASTEXITCODE -ne 0) { throw 'Signed candidate validation failed' }
       - uses: actions/upload-artifact@v4
         with:
           name: MAGNETRON-Windows-x64
-          path: src-tauri/target/release/bundle/nsis/*-setup.exe
+          path: |
+            src-tauri/target/release/bundle/nsis/*-setup.exe
+            artifacts/signed-update/windows-update.json

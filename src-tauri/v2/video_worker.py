@@ -139,6 +139,12 @@ def main():
     emit('metadata',name=name,files=[name],total=source.stat().st_size)
     publish(source,folder/name,identifier)
     emit('completed')
+    # The destination is now durable. Do not retain a second full video in
+    # application data; only private downloader payload files are removed.
+    for cached in stage.iterdir():
+        if cached.name.startswith('payload.') and cached.is_file() and not cached.is_symlink():
+            try:cached.unlink()
+            except OSError:pass
 
 if __name__=='__main__':
     try:main()

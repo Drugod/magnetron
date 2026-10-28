@@ -72,4 +72,5 @@ class VideoSafety(unittest.TestCase):
             metadata=next(event for event in messages if event['kind']=='metadata')
             self.assertEqual(len(list(dest.iterdir())),1)
             self.assertEqual((dest/metadata['files'][0]).read_bytes(),output.read_bytes())
+            self.assertFalse((stage/'payload.mkv').exists(),'Completed videos must not retain a duplicate payload')
 if __name__=='__main__':unittest.main()
