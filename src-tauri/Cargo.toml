@@ -15,7 +15,7 @@ serde_json = "1"
 tokio = { version = "1", features = ["sync", "time", "rt", "macros", "net", "io-util", "process"] }
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream", "json", "cookies"] }
 rusqlite = { version = "0.32", features = ["bundled"] }
-sha1 = "0.10"
+sha1 = "0.11"
 md-5 = "0.10"
 md4 = "0.10"
 hex = "0.4"
