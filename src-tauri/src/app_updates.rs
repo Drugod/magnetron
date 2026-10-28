@@ -253,6 +253,27 @@ pub fn configured() -> bool {
     channel().is_some()
 }
 #[cfg(unix)]
+fn prepare_native_helper(runtime: &Path, root: &Path) -> Result<(PathBuf, PathBuf), String> {
+    use std::os::unix::fs::PermissionsExt;
+    let source = runtime.join("video-tools/node");
+    if !source.is_file() {
+        return Err("Falta el instalador integrado de actualizaciones".into());
+    }
+    crate::secure_fs::private_dir(root)?;
+    // AppImage unmounts its resources after exit. The detached installer must
+    // run from private persistent storage, not from that disappearing mount.
+    let node = root.join("installer-node");
+    crate::secure_fs::atomic_private(&node, &std::fs::read(source).map_err(|e| e.to_string())?)?;
+    std::fs::set_permissions(&node, std::fs::Permissions::from_mode(0o700))
+        .map_err(|e| e.to_string())?;
+    let helper = root.join("native_update.mjs");
+    crate::secure_fs::atomic_private(
+        &helper,
+        &std::fs::read(runtime.join("native_update.mjs")).map_err(|e| e.to_string())?,
+    )?;
+    Ok((node, helper))
+}
+#[cfg(unix)]
 pub fn launch_native(app: &tauri::AppHandle, installer: &Path) -> Result<(), String> {
     let root = root(app)?;
     if installer != root.join("installer.exe") {
@@ -299,15 +320,7 @@ pub fn launch_native(app: &tauri::AppHandle, installer: &Path) -> Result<(), Str
     if !runtime.join("native_update.mjs").is_file() {
         runtime = crate::platform::dev_runtime();
     }
-    let node = runtime.join("video-tools/node");
-    if !node.is_file() {
-        return Err("Falta el instalador integrado de actualizaciones".into());
-    }
-    let helper = root.join("native_update.mjs");
-    crate::secure_fs::atomic_private(
-        &helper,
-        &std::fs::read(runtime.join("native_update.mjs")).map_err(|e| e.to_string())?,
-    )?;
+    let (node, helper) = prepare_native_helper(&runtime, &root)?;
     let request = serde_json::json!({"root":root,"platform":platform(),"target":target,"installed":env!("CARGO_PKG_VERSION"),"pid":std::process::id(),"publicKey":include_str!("../update-public-key.txt").trim()});
     let request_file = root.join("install-request.json");
     crate::secure_fs::atomic_private(
@@ -320,6 +333,11 @@ pub fn launch_native(app: &tauri::AppHandle, installer: &Path) -> Result<(), Str
         .arg(request_file)
         .env_remove("NODE_OPTIONS")
         .env_remove("NODE_PATH")
+        .env_remove("LD_LIBRARY_PATH")
+        .env_remove("LD_PRELOAD")
+        .env_remove("DYLD_LIBRARY_PATH")
+        .env_remove("DYLD_INSERT_LIBRARIES")
+        .current_dir(&root)
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
@@ -354,6 +372,42 @@ pub fn confirm_startup(app: &tauri::AppHandle) {
 mod tests {
     use super::*;
     use ring::signature::KeyPair;
+    #[cfg(unix)]
+    #[test]
+    fn native_helper_survives_disappearing_original_runtime() {
+        let temporary = tempfile::tempdir().unwrap();
+        let original = temporary.path().join("mounted-runtime");
+        std::fs::create_dir_all(original.join("video-tools")).unwrap();
+        let runtime = crate::platform::dev_runtime();
+        std::fs::copy(
+            runtime.join("video-tools/node"),
+            original.join("video-tools/node"),
+        )
+        .unwrap();
+        std::fs::copy(
+            runtime.join("native_update.mjs"),
+            original.join("native_update.mjs"),
+        )
+        .unwrap();
+        let root = temporary.path().join("private-updates");
+        let (node, helper) = prepare_native_helper(&original, &root).unwrap();
+        std::fs::remove_dir_all(&original).unwrap();
+        let output = std::process::Command::new(node)
+            .arg("--eval")
+            .arg("process.stdout.write('detached-installer-ready')")
+            .env_remove("NODE_OPTIONS")
+            .env_remove("NODE_PATH")
+            .env_remove("LD_LIBRARY_PATH")
+            .env_remove("LD_PRELOAD")
+            .env_remove("DYLD_LIBRARY_PATH")
+            .env_remove("DYLD_INSERT_LIBRARIES")
+            .current_dir(&root)
+            .output()
+            .unwrap();
+        assert!(output.status.success());
+        assert_eq!(output.stdout, b"detached-installer-ready");
+        assert!(helper.is_file());
+    }
     #[test]
     fn rejects_tamper_and_rollback() {
         let rng = ring::rand::SystemRandom::new();
