@@ -25,7 +25,7 @@ let appearance: Appearance = ["light", "dark"].includes(
 export const getLanguage = () => language;
 export const locale = () => (language === "en" ? "en-GB" : "es-ES");
 const pairs: Record<string, string> = {
-  "No se pudo completar la actualización. Se ha conservado la instalación anterior.": "The update could not be completed. The previous installation was preserved.",
+  "No se pudo completar la actualización. Comprueba la instalación antes de volver a intentarlo.": "The update could not be completed. Check the installation before trying again.",
   "No se puede actualizar en esta ubicación. Mueve MAGNETRON a una carpeta con permisos de escritura": "This location cannot be updated. Move MAGNETRON to a writable folder",
   "Instala MAGNETRON en Aplicaciones antes de actualizar": "Install MAGNETRON in Applications before updating",
   "Este sistema necesita PackageKit/polkit para instalar el paquete Debian": "This system requires polkit to install the Debian package",

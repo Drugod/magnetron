@@ -334,7 +334,7 @@ pub fn take_install_notice(app: &tauri::AppHandle) -> Option<String> {
         return None;
     }
     std::fs::remove_file(file).ok()?;
-    Some("No se pudo completar la actualización. Se ha conservado la instalación anterior.".into())
+    Some("No se pudo completar la actualización. Comprueba la instalación antes de volver a intentarlo.".into())
 }
 pub fn confirm_startup(app: &tauri::AppHandle) {
     for arg in std::env::args().skip(1) {

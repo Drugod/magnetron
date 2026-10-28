@@ -37,6 +37,15 @@ test('replacement retains exact old executable and refuses backup collisions',()
   assert.deepEqual(fs.readdirSync(f.root).sort(),['application','previous','source']);
  }finally{fs.rmSync(f.root,{recursive:true,force:true});}
 });
+test('a failed atomic commit leaves the original launch path usable',()=>{
+ const f=fixture();const rename=fs.renameSync;try{
+  const source=path.join(f.root,'source'),target=path.join(f.root,'application'),backup=path.join(f.root,'previous');
+  fs.writeFileSync(source,'new');fs.writeFileSync(target,'old');
+  fs.renameSync=(from,to)=>{if(from.startsWith(target+'.new-'))throw Error('injected commit failure');return rename(from,to);};
+  assert.throws(()=>replaceFile(source,target,backup));
+  assert.equal(fs.readFileSync(target,'utf8'),'old');assert.equal(fs.readFileSync(backup,'utf8'),'old');
+ }finally{fs.renameSync=rename;fs.rmSync(f.root,{recursive:true,force:true});}
+});
 test('detached installer waits for exit, replaces AppImage, launches and confirms health',{skip:process.platform==='win32',timeout:20000},async()=>{
  const f=fixture();let helper,parent;try{
   const file=path.join(f.root,'installer.exe'),target=path.join(f.root,'MAGNETRON.AppImage');

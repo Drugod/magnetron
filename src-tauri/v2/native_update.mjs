@@ -31,8 +31,14 @@ export function replaceFile(source,target,backup) {
   const temporary=target+'.new-'+crypto.randomBytes(12).toString('hex');
   try {
     fs.copyFileSync(source,temporary,fs.constants.COPYFILE_EXCL);fs.chmodSync(temporary,0o755);
-    fs.renameSync(target,backup);
-    try{fs.renameSync(temporary,target);}catch(error){fs.renameSync(backup,target);throw error;}
+    const fd=fs.openSync(temporary,'r');try{fs.fsyncSync(fd);}finally{fs.closeSync(fd);}
+    // Keep the launch path present throughout replacement, including a crash
+    // between backup creation and commit. Fall back to copy on FAT/exFAT.
+    try{fs.linkSync(target,backup);}catch(error){
+      if(error.code==='EEXIST')throw error;
+      fs.copyFileSync(target,backup,fs.constants.COPYFILE_EXCL);
+    }
+    fs.renameSync(temporary,target);
   } finally {if(fs.existsSync(temporary))fs.unlinkSync(temporary);}
 }
 export async function install(request, {healthTimeoutMs=90000} = {}) {
@@ -106,7 +112,7 @@ export async function install(request, {healthTimeoutMs=90000} = {}) {
       fs.renameSync(target,failed);
       fs.renameSync(backup,target);
     }
-    fs.writeFileSync(path.join(root,'install-error.txt'),'The update could not be completed. The previous installation was preserved.',{mode:0o600});
+    fs.writeFileSync(path.join(root,'install-error.txt'),'The update could not be completed. Check the installation before trying again.',{mode:0o600});
     launch();
     throw error;
   }
