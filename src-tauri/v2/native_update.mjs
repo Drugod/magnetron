@@ -35,7 +35,7 @@ export function replaceFile(source,target,backup) {
     try{fs.renameSync(temporary,target);}catch(error){fs.renameSync(backup,target);throw error;}
   } finally {if(fs.existsSync(temporary))fs.unlinkSync(temporary);}
 }
-async function install(request) {
+export async function install(request, {healthTimeoutMs=90000} = {}) {
   const {root,platform,target,installed,pid,publicKey}=request;
   if(!path.isAbsolute(root)||!path.isAbsolute(target)||!Number.isSafeInteger(pid)||pid<2)throw Error('Invalid installer request');
   const packagePath=path.join(root,'installer.exe');
@@ -81,7 +81,7 @@ async function install(request) {
       } finally {fs.rmSync(temporary,{recursive:true,force:true});}
     }
     launch();
-    const deadline=Date.now()+90000;
+    const deadline=Date.now()+healthTimeoutMs;
     while(Date.now()<deadline){
       if(fs.existsSync(health)&&fs.readFileSync(health,'utf8')===release.version){
         fs.unlinkSync(health);
