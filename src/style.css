@@ -251,7 +251,8 @@ main {
     border-color 0.15s,
     box-shadow 0.15s;
 }
-.search-box:focus-within {
+.search-box:focus-within,
+.search-box.torrent-drop-target {
   border-color: var(--accent);
   box-shadow: 0 0 0 4px var(--focus);
 }

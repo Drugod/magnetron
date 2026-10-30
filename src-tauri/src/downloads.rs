@@ -61,6 +61,13 @@ mod tests {
     }
     #[tokio::test]
     async fn metadata_download_pause_restart_resume_and_cancel_keep_files() {
+        transfer_restart_fixture(false).await;
+    }
+    #[tokio::test]
+    async fn imported_torrent_survives_source_removal_and_restart_without_duplicates() {
+        transfer_restart_fixture(true).await;
+    }
+    async fn transfer_restart_fixture(import_file: bool) {
         use tokio::{
             io::{AsyncReadExt, AsyncWriteExt},
             net::TcpListener,
@@ -104,7 +111,7 @@ mod tests {
         .unwrap();
         let seed_torrent = seed
             .add_torrent(
-                AddTorrent::from_bytes(torrent),
+                AddTorrent::from_bytes(torrent.clone()),
                 Some(AddTorrentOptions {
                     overwrite: true,
                     ..Default::default()
@@ -174,14 +181,40 @@ mod tests {
             .await
             .unwrap();
         assert!(manager.session.set(session).is_ok());
-        let id = manager
-            .add(
-                uri.to_string(),
-                "Prueba de transferencia".into(),
-                root.clone(),
-            )
-            .await
-            .unwrap();
+        let id = if import_file {
+            let tracker = format!("http://{tracker_addr}/announce");
+            let mut bytes = format!("d8:announce{}:{}", tracker.len(), tracker).into_bytes();
+            bytes.extend(&torrent[1..]);
+            let source = root.join("dragged.torrent");
+            std::fs::write(&source, &bytes).unwrap();
+            let id = manager
+                .add_file(crate::torrent_files::read(&source).unwrap(), root.clone())
+                .await
+                .unwrap();
+            assert_eq!(
+                manager
+                    .add_file(crate::torrent_files::read(&source).unwrap(), root.clone())
+                    .await
+                    .unwrap(),
+                id
+            );
+            assert_eq!(manager.list().len(), 1);
+            assert_eq!(
+                std::fs::read(manager.dir.join("metadata").join(format!("{id}.torrent"))).unwrap(),
+                bytes
+            );
+            std::fs::remove_file(source).unwrap();
+            id
+        } else {
+            manager
+                .add(
+                    uri.to_string(),
+                    "Prueba de transferencia".into(),
+                    root.clone(),
+                )
+                .await
+                .unwrap()
+        };
         assert_eq!(id, hash);
         assert_eq!(manager.folder(&id).unwrap(), root.canonicalize().unwrap());
         assert!(!root.join("MAGNETRON").exists());
@@ -615,6 +648,23 @@ impl Downloads {
         name: String,
         root: PathBuf,
     ) -> Result<String, String> {
+        self.add_input(uri, name, root, None).await
+    }
+    pub async fn add_file(
+        self: &Arc<Self>,
+        imported: crate::torrent_files::Imported,
+        root: PathBuf,
+    ) -> Result<String, String> {
+        self.add_input(imported.uri, imported.name, root, Some(imported.bytes))
+            .await
+    }
+    async fn add_input(
+        self: &Arc<Self>,
+        uri: String,
+        name: String,
+        root: PathBuf,
+        metadata: Option<Vec<u8>>,
+    ) -> Result<String, String> {
         let (id, uri) = hash_from_magnet(&uri)?;
         let _guard = self.control.lock().await;
         if self.records.lock().unwrap().contains_key(&id) {
@@ -628,6 +678,12 @@ impl Downloads {
         }
         reject_links(&root)?;
         let folder = root;
+        if let Some(bytes) = metadata {
+            crate::secure_fs::atomic_private(
+                &self.dir.join("metadata").join(format!("{id}.torrent")),
+                &bytes,
+            )?;
+        }
         self.records.lock().unwrap().insert(
             id.clone(),
             Download {
