@@ -59,6 +59,15 @@ def run(config):
     params.peers=peers
     expected=str(params.info_hashes.v2)
     if not params.info_hashes.has_v2() or params.info_hashes.has_v1(): raise ValueError('This worker handles pure BitTorrent v2 links')
+    if config.get('torrent_file'):
+        with open(config['torrent_file'],'rb') as source:
+            metadata=source.read(4*1024*1024+1)
+        if not metadata or len(metadata)>4*1024*1024: raise ValueError('Invalid torrent metadata size')
+        ti=lt.torrent_info(lt.bdecode(metadata))
+        if not ti.info_hashes().has_v2() or ti.info_hashes().has_v1() or str(ti.info_hashes().v2)!=expected:
+            raise ValueError('BitTorrent v2 metadata hash mismatch')
+        params.ti=ti
+        params.trackers=[tracker.url for tracker in ti.trackers()]
     params.save_path=str(staging)
     params.flags &= ~lt.torrent_flags.auto_managed
     params.flags &= ~lt.torrent_flags.paused

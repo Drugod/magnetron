@@ -20,6 +20,7 @@ mod sharing;
 mod sources;
 mod storage;
 mod torrent;
+mod torrent_files;
 mod tray;
 mod v2;
 mod video;
@@ -248,6 +249,29 @@ async fn add_download(
         .downloads
         .add(uri, name, std::path::PathBuf::from(folder))
         .await
+}
+#[tauri::command]
+async fn add_torrent_file(
+    path: String,
+    folder: String,
+    state: State<'_, AppState>,
+) -> Result<String, String> {
+    let imported = tauri::async_runtime::spawn_blocking(move || {
+        torrent_files::read(std::path::Path::new(&path))
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+    update_limits(&state).await?;
+    if imported.pure_v2 {
+        state
+            .v2_downloads
+            .add_file(imported, std::path::PathBuf::from(folder))
+    } else {
+        state
+            .downloads
+            .add_file(imported, std::path::PathBuf::from(folder))
+            .await
+    }
 }
 #[tauri::command]
 async fn remove_download(
@@ -800,6 +824,7 @@ fn main() {
             list_downloads,
             take_recovery_notices,
             add_download,
+            add_torrent_file,
             download_action,
             remove_download,
             open_download_folder,

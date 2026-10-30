@@ -17,6 +17,7 @@ import {
 } from "./model";
 import "./style.css";
 import { setupDownloads } from "./downloads";
+import { setupTorrentDrop } from "./torrent-drop";
 import { setupViews, showView } from "./views";
 import {
   setupLanguageAndAppearance,
@@ -53,7 +54,7 @@ app.innerHTML = `
 <div class="workspace">
 <header class="window-controls" aria-label="Preferencias rápidas"><select id="language-select" aria-label="Idioma" title="Idioma"><option value="es" data-no-i18n>Español</option><option value="en" data-no-i18n>English</option></select><select id="appearance-select" aria-label="Apariencia" title="Apariencia"><option value="system">Sistema</option><option value="light">Claro</option><option value="dark">Oscuro</option></select></header>
 <main><h1 class="search-title">Buscar</h1>
-<form id="search-form" class="search-box">${icon("search")}<textarea id="query" rows="1" maxlength="1000000" placeholder="Buscar o pegar enlaces…" autocomplete="off" aria-label="Buscar o pegar enlaces" spellcheck="false"></textarea><button type="button" id="clear-search" class="clear-search" aria-label="Limpiar búsqueda" title="Limpiar búsqueda" hidden>×</button><kbd>Ctrl K</kbd><button type="submit" id="search-button" aria-label="Buscar o descargar">${icon("arrow")}</button></form>
+<form id="search-form" class="search-box" title="Arrastra aquí archivos .torrent para descargarlos">${icon("search")}<textarea id="query" rows="1" maxlength="1000000" placeholder="Buscar o pegar enlaces…" autocomplete="off" aria-label="Buscar o pegar enlaces" spellcheck="false"></textarea><button type="button" id="clear-search" class="clear-search" aria-label="Limpiar búsqueda" title="Limpiar búsqueda" hidden>×</button><kbd>Ctrl K</kbd><button type="submit" id="search-button" aria-label="Buscar o descargar">${icon("arrow")}</button></form>
 <section id="browser-notice" class="notice" hidden>Vista previa de interfaz. La búsqueda real y SQLite funcionan en la aplicación de escritorio. Ejecuta <code>npm run desktop</code>.</section>
 <div class="results-heading"><div><h2 id="results-title">Listo para explorar</h2><span id="result-count">Catálogos públicos, resultados reales.</span></div><span id="search-state" class="quiet-status"><span class="dot"></span> En espera</span></div>
 <div class="filter-bar"><div class="filter-left"><select id="type-filter" aria-label="Filtrar por tipo de contenido"><option value="all">Todos los ficheros</option><option value="iso">ISO / imágenes de disco</option><option value="video">Vídeo</option><option value="documents">Documentos</option><option value="audio">Audio</option><option value="images">Imágenes</option><option value="archives">Comprimidos</option><option value="software">Programas / juegos</option><option value="other">Otros ficheros</option><option value="unknown">Sin clasificar</option></select></div><select id="sort" aria-label="Ordenar resultados"><option value="relevance">Orden: relevancia</option><option value="size">Orden: tamaño</option><option value="date">Orden: recientes</option><option value="name">Orden: nombre</option></select></div>
@@ -157,6 +158,10 @@ function toast(message: string) {
 }
 setupViews();
 const downloader = setupDownloads(toast);
+if (desktop)
+  void setupTorrentDrop(downloader.addTorrentFiles, toast).catch((e) =>
+    toast(String(e)),
+  );
 $("#settings-form").insertAdjacentHTML(
   "afterbegin",
   `<h3>Descargas</h3><label class="setting-row"><span>Calidad de YouTube</span><select name="video_quality"><option value="0">Mejor disponible</option><option value="2160">2160p</option><option value="1440">1440p</option><option value="1080">1080p</option><option value="720">720p</option><option value="480">480p</option><option value="360">360p</option></select></label><p class="muted">Se descargará hasta la calidad elegida, según lo disponible en el vídeo.</p><label for="download-folder">Carpeta de descarga</label><div class="folder-setting"><input id="download-folder" name="download_folder" readonly placeholder="Se preguntará en la primera descarga"><button type="button" id="choose-default-folder" class="text-button">Elegir carpeta</button><button type="button" id="reset-default-folder" class="text-button">Quitar</button></div><p class="muted">Los archivos se guardan directamente aquí, sin carpetas añadidas por MAGNETRON.</p><label class="setting-row">Límite de bajada (KiB/s)<input name="download_limit_kib" type="number" min="0" max="1048576" step="1" required></label><label class="setting-row">Límite de subida (KiB/s)<input name="upload_limit_kib" type="number" min="0" max="1048576" step="1" required></label><p class="muted">0 = sin límite. Mínimo limitado: 32 KiB/s. Se reparte entre BitTorrent y eD2k cuando ambas redes están activas.</p>`,
@@ -914,7 +919,9 @@ if (isTauri()) {
     .then((version) => {
       $("#installed-app-version").textContent = `v${version}`;
     })
-    .catch((error) => console.error("Cannot read installed application version", error));
+    .catch((error) =>
+      console.error("Cannot read installed application version", error),
+    );
 }
 
 type AppUpdateStatus = {

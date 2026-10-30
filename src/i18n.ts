@@ -25,21 +25,44 @@ let appearance: Appearance = ["light", "dark"].includes(
 export const getLanguage = () => language;
 export const locale = () => (language === "en" ? "en-GB" : "es-ES");
 const pairs: Record<string, string> = {
-  "No se pudo completar la actualización. Comprueba la instalación antes de volver a intentarlo.": "The update could not be completed. Check the installation before trying again.",
-  "No se puede actualizar en esta ubicación. Mueve MAGNETRON a una carpeta con permisos de escritura": "This location cannot be updated. Move MAGNETRON to a writable folder",
-  "Instala MAGNETRON en Aplicaciones antes de actualizar": "Install MAGNETRON in Applications before updating",
-  "Este sistema necesita PackageKit/polkit para instalar el paquete Debian": "This system requires polkit to install the Debian package",
-  "Falta el instalador integrado de actualizaciones": "The bundled update installer is missing",
+  "Arrastra aquí archivos .torrent para descargarlos":
+    "Drop .torrent files here to download them",
+  "Arrastra un archivo .torrent válido": "Drop a valid .torrent file",
+  "Arrastra como máximo 100 archivos .torrent a la vez":
+    "Drop up to 100 .torrent files at a time",
+  "Torrents añadidos a Descargas": "Torrents added to Downloads",
+  "No se pudo leer el archivo .torrent": "Could not read the .torrent file",
+  "El archivo .torrent está vacío o supera 4 MiB":
+    "The .torrent file is empty or exceeds 4 MiB",
+  "Archivo .torrent inválido": "Invalid .torrent file",
+  "Archivo .torrent sin metadatos": "The .torrent file has no metadata",
+  "No se pudo completar la actualización. Comprueba la instalación antes de volver a intentarlo.":
+    "The update could not be completed. Check the installation before trying again.",
+  "No se puede actualizar en esta ubicación. Mueve MAGNETRON a una carpeta con permisos de escritura":
+    "This location cannot be updated. Move MAGNETRON to a writable folder",
+  "Instala MAGNETRON en Aplicaciones antes de actualizar":
+    "Install MAGNETRON in Applications before updating",
+  "Este sistema necesita PackageKit/polkit para instalar el paquete Debian":
+    "This system requires polkit to install the Debian package",
+  "Falta el instalador integrado de actualizaciones":
+    "The bundled update installer is missing",
 
-  "Descargas BitTorrent, eD2k y YouTube": "BitTorrent, eD2k and YouTube downloads",
-  "YouTube: no se pudo completar la descarga. Comprueba la conexión e intenta reanudar.": "YouTube: download unavailable or interrupted. Check the connection and try resuming.",
-  "Las actualizaciones se comprueban automáticamente.": "Updates are checked automatically.",
+  "Descargas BitTorrent, eD2k y YouTube":
+    "BitTorrent, eD2k and YouTube downloads",
+  "YouTube: no se pudo completar la descarga. Comprueba la conexión e intenta reanudar.":
+    "YouTube: download unavailable or interrupted. Check the connection and try resuming.",
+  "Las actualizaciones se comprueban automáticamente.":
+    "Updates are checked automatically.",
   "Calidad de YouTube": "YouTube quality",
   "Mejor disponible": "Best available",
-  "Se descargará hasta la calidad elegida, según lo disponible en el vídeo.": "Downloads up to the selected quality, depending on what the video offers.",
-  "Pega enlaces eD2k, magnet o YouTube, uno por línea": "Paste eD2k, magnet or YouTube links, one per line",
-  "YouTube: se ha recuperado la última copia válida de la cola. Los archivos descargados se conservan.": "YouTube: the last valid queue checkpoint was recovered. Downloaded files are preserved.",
-  "YouTube: no se pudo recuperar la cola. Se ha conservado una copia de los datos dañados y no se han borrado archivos descargados.": "YouTube: the queue could not be recovered. A copy of the damaged data was preserved and downloaded files were not deleted.",
+  "Se descargará hasta la calidad elegida, según lo disponible en el vídeo.":
+    "Downloads up to the selected quality, depending on what the video offers.",
+  "Pega enlaces eD2k, magnet o YouTube, uno por línea":
+    "Paste eD2k, magnet or YouTube links, one per line",
+  "YouTube: se ha recuperado la última copia válida de la cola. Los archivos descargados se conservan.":
+    "YouTube: the last valid queue checkpoint was recovered. Downloaded files are preserved.",
+  "YouTube: no se pudo recuperar la cola. Se ha conservado una copia de los datos dañados y no se han borrado archivos descargados.":
+    "YouTube: the queue could not be recovered. A copy of the damaged data was preserved and downloaded files were not deleted.",
   Entendido: "Understood",
   "BitTorrent: se ha recuperado la última copia válida de la cola. Los archivos descargados se conservan.":
     "BitTorrent: the last valid queue checkpoint was recovered. Downloaded files are preserved.",

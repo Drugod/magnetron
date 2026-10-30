@@ -2,7 +2,7 @@ import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { bytes, type Torrent, type Settings } from "./model";
 import { showView } from "./views";
-import { getLanguage } from "./i18n";
+import { getLanguage, translate } from "./i18n";
 export interface Download {
   id: string;
   name: string;
@@ -225,11 +225,13 @@ export function setupDownloads(notify: (s: string) => void) {
           }
         };
         c[0].title = d.folder;
-        c[1].textContent = d.id.startsWith("youtube:") ? "YouTube" : d.id.startsWith("ed2k:")
-          ? "eD2k"
-          : d.id.startsWith("bt2:")
-            ? "BitTorrent v2"
-            : "BitTorrent";
+        c[1].textContent = d.id.startsWith("youtube:")
+          ? "YouTube"
+          : d.id.startsWith("ed2k:")
+            ? "eD2k"
+            : d.id.startsWith("bt2:")
+              ? "BitTorrent v2"
+              : "BitTorrent";
         c[2].textContent = d.total_bytes ? bytes(d.total_bytes) : "—";
         if (d.total_bytes) {
           r.progress.value = Math.min(1, d.completed_bytes / d.total_bytes);
@@ -375,6 +377,52 @@ export function setupDownloads(notify: (s: string) => void) {
     imports = task;
     return task;
   }
+  function addTorrentFiles(paths: string[]): Promise<void> {
+    const task = imports
+      .catch(() => {})
+      .then(async () => {
+        const files = [
+          ...new Set(paths.filter((path) => /\.torrent$/i.test(path))),
+        ];
+        if (!files.length) return notify("Arrastra un archivo .torrent válido");
+        if (paths.length > 100)
+          return notify("Arrastra como máximo 100 archivos .torrent a la vez");
+        if (!isTauri()) return notify("Disponible en MAGNETRON de escritorio");
+        linkButton.disabled = true;
+        try {
+          const selected = await folder();
+          if (!selected) return;
+          let added = 0;
+          const failed: string[] = [];
+          for (const path of files) {
+            try {
+              await invoke("add_torrent_file", { path, folder: selected });
+              added++;
+            } catch (error) {
+              const name = path.split(/[\\/]/).pop() ?? path;
+              failed.push(`${name}: ${translate(String(error))}`);
+            }
+          }
+          if (added) show();
+          await refresh();
+          const message = [
+            added ? translate("Torrents añadidos a Descargas") : "",
+            ...failed,
+          ]
+            .filter(Boolean)
+            .join(" · ");
+          feedback.textContent = message;
+          linkStatus.textContent = message;
+          if (message) notify(message);
+        } catch (error) {
+          notify(String(error));
+        } finally {
+          linkButton.disabled = false;
+        }
+      });
+    imports = task;
+    return task;
+  }
   if (isTauri()) {
     let draining = Promise.resolve();
     const drain = () => {
@@ -393,6 +441,7 @@ export function setupDownloads(notify: (s: string) => void) {
   return {
     show,
     addLinks,
+    addTorrentFiles,
     async download(t: Torrent) {
       if (!isTauri()) return notify("Disponible en MAGNETRON de escritorio");
       const current = await invoke<Download[]>("list_downloads");

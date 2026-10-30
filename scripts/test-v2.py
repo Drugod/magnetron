@@ -70,6 +70,32 @@ def main():
         if p3.poll() is None:p3.kill();p3.wait()
       (dest/'sample.bin').unlink()
       assert list(dest.iterdir())==[]
+      # Dropped v2 metadata is retained privately; losing the original never breaks a transfer/resume.
+      source=root/'dropped.torrent';source.write_bytes(lt.bencode(ct.generate()))
+      cached=root/'metadata.torrent';cached.write_bytes(source.read_bytes());source.unlink()
+      file_config={**config,'torrent_file':str(cached),'resume':False}
+      pf,ef=worker(file_config)
+      try:
+        wait(pf,ef,'completed');assert pf.wait(timeout=10)==0
+        assert (dest/'sample.bin').read_bytes()==payload
+      finally:
+        if pf.poll() is None:pf.kill();pf.wait()
+      (dest/'sample.bin').write_bytes(b'X'*len(payload))
+      pf,ef=worker({**file_config,'resume':True})
+      try:
+        wait(pf,ef,'completed');assert pf.wait(timeout=10)==0
+        assert (dest/'sample.bin').read_bytes()==payload
+      finally:
+        if pf.poll() is None:pf.kill();pf.wait()
+      (dest/'sample.bin').unlink()
+      wrong_uri='magnet:?xt=urn:btmh:1220'+'ab'*32
+      pf,ef=worker({**file_config,'uri':wrong_uri})
+      try:
+        event=ef.get(timeout=10)
+        assert event['kind']=='error' and 'hash mismatch' in event['error'];assert pf.wait(timeout=10)!=0
+        assert not list(dest.iterdir())
+      finally:
+        if pf.poll() is None:pf.kill();pf.wait()
       # A reachable peer with metadata but no content must never be admitted.
       (seed/'incomplete.bin').write_bytes(b'private-test'*2048)
       fs2=lt.file_storage();fs2.add_file('incomplete.bin',(seed/'incomplete.bin').stat().st_size)
@@ -90,7 +116,7 @@ def main():
       finally:
         if pn.poll() is None:pn.kill();pn.wait()
         session2.remove_torrent(h2);del h2;del session2
-      print('PASS: v2 complete-source admission, incomplete-source rejection, transfer, payload hash, collision protection, corrupted resume, file release')
+      print('PASS: v2 complete-source admission, incomplete-source rejection, transfer, payload hash, collision protection, corrupted resume, imported torrent/source removal/restart/hash binding, file release')
     finally:
       if p.poll() is None:p.kill();p.wait()
       session.remove_torrent(handle);del handle;del session

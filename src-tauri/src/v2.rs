@@ -191,6 +191,29 @@ impl Downloads {
         folder: PathBuf,
         quality: u32,
     ) -> Result<String, String> {
+        self.add_input(uri, name, folder, quality, None)
+    }
+    pub fn add_file(
+        self: &Arc<Self>,
+        imported: crate::torrent_files::Imported,
+        folder: PathBuf,
+    ) -> Result<String, String> {
+        self.add_input(
+            imported.uri,
+            imported.name,
+            folder,
+            1080,
+            Some(imported.bytes),
+        )
+    }
+    fn add_input(
+        self: &Arc<Self>,
+        uri: String,
+        name: String,
+        folder: PathBuf,
+        quality: u32,
+        metadata: Option<Vec<u8>>,
+    ) -> Result<String, String> {
         if !matches!(quality, 0 | 360 | 480 | 720 | 1080 | 1440 | 2160) {
             return Err("Calidad de vídeo inválida".into());
         }
@@ -205,6 +228,12 @@ impl Downloads {
         }
         let folder = folder.canonicalize().map_err(|e| e.to_string())?;
         crate::downloads::reject_links(&folder)?;
+        if !folder.is_dir() {
+            return Err("El destino no es una carpeta".into());
+        }
+        if let Some(bytes) = metadata {
+            crate::secure_fs::atomic_private(&self.metadata_path(&id), &bytes)?;
+        }
         self.records.lock().unwrap().insert(
             id.clone(),
             Entry {
@@ -231,6 +260,11 @@ impl Downloads {
             self.save()?;
         }
         Ok(id)
+    }
+    fn metadata_path(&self, id: &str) -> PathBuf {
+        self.data
+            .join("metadata")
+            .join(format!("{}.torrent", id.replace(':', "-")))
     }
     fn spawn(self: &Arc<Self>, id: &str, resume: bool) -> Result<(), String> {
         if self.jobs.lock().unwrap().len() >= 8 {
@@ -268,7 +302,7 @@ impl Downloads {
         let mut input = child.stdin.take().unwrap();
         let output = child.stdout.take().unwrap();
         let (down, up) = *self.limits.lock().unwrap();
-        writeln!(input,"{}",serde_json::json!({"uri":e.row.uri,"folder":e.row.folder,"staging":staging,"resume":resume,"down":down,"up":up,"quality":e.quality})).map_err(|e|e.to_string())?;
+        writeln!(input,"{}",serde_json::json!({"uri":e.row.uri,"folder":e.row.folder,"staging":staging,"resume":resume,"down":down,"up":up,"quality":e.quality,"torrent_file":(!self.video && self.metadata_path(id).is_file()).then(|| self.metadata_path(id))})).map_err(|e|e.to_string())?;
         input.flush().map_err(|e| e.to_string())?;
         let token = rand::random::<u64>();
         self.jobs.lock().unwrap().insert(
@@ -436,7 +470,12 @@ impl Downloads {
             crate::downloads::delete_payload(std::path::Path::new(&e.row.folder), &e.files)?;
         }
         self.records.lock().unwrap().remove(id);
-        self.save()
+        self.save()?;
+        let metadata = self.metadata_path(id);
+        if metadata.is_file() {
+            std::fs::remove_file(metadata).map_err(|e| e.to_string())?;
+        }
+        Ok(())
     }
     pub fn shutdown(&self) {
         let _guard = self.control.lock().unwrap();
