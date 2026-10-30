@@ -102,7 +102,14 @@ mod tests {
         let imported = parse(v1()).unwrap();
         assert!(!imported.pure_v2);
         assert_eq!(imported.name, "a.txt");
-        assert!(imported.uri.contains("urn:btih:"));
+        let uri = url::Url::parse(&imported.uri).unwrap();
+        let expected = librqbit::torrent_from_bytes(&v1())
+            .unwrap()
+            .info_hash
+            .as_string();
+        assert!(uri
+            .query_pairs()
+            .any(|(key, value)| key == "xt" && value == format!("urn:btih:{expected}")));
         let mut trailing = v1();
         trailing.push(b'e');
         assert!(parse(trailing).is_err());
