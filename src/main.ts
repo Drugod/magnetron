@@ -5,7 +5,7 @@ import { listen } from "@tauri-apps/api/event";
 import {
   bytes,
   defaults,
-  mergeResults,
+  mergeSearchResults,
   rank,
   contentLabels,
   contentTypes,
@@ -341,9 +341,7 @@ function render() {
   const type = $<HTMLSelectElement>("#type-filter").value;
 
   const sort = $<HTMLSelectElement>("#sort").value;
-  const filtered = results.filter(
-    (t) => matchesContent(t, type) && isCurrentlyAvailable(t),
-  );
+  const filtered = results.filter((t) => matchesContent(t, type));
   filtered.sort((a, b) =>
     sort === "size"
       ? (b.size_bytes ?? -1) - (a.size_bytes ?? -1)
@@ -692,7 +690,7 @@ async function init() {
     await listen<SearchEvent>("search-event", ({ payload: e }) => {
       if (e.search_id !== currentId) return;
       if (e.kind === "cache" || e.kind === "batch") {
-        results = mergeResults(results, e.results);
+        results = mergeSearchResults(results, e.results);
         render();
       } else if (e.kind === "checking")
         state(e.message ?? "Comprobando disponibilidad…");
@@ -739,9 +737,7 @@ $(".filter-bar").insertAdjacentHTML(
 $("#export-results").onclick = async () => {
   try {
     const type = $<HTMLSelectElement>("#type-filter").value;
-    const items = results.filter(
-      (t) => matchesContent(t, type) && isCurrentlyAvailable(t),
-    );
+    const items = results.filter((t) => matchesContent(t, type));
     const saved = await invoke<boolean>("export_results", {
       items,
       format: $<HTMLSelectElement>("#export-format").value,
