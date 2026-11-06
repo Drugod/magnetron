@@ -111,6 +111,33 @@ export function mergeResults(
   }
   return [...map.values()];
 }
+/** Admit fresh evidence once; keep the current search's rows until an explicit reset. */
+export function mergeSearchResults(
+  previous: Torrent[],
+  incoming: Torrent[],
+  now = Date.now(),
+): Torrent[] {
+  const existing = new Map(previous.map((item) => [item.id, item]));
+  const admitted: Torrent[] = [];
+  for (const item of incoming) {
+    if (isCurrentlyAvailable(item, now)) {
+      admitted.push(item);
+      continue;
+    }
+    const old = existing.get(item.id);
+    if (old) {
+      // A poorer duplicate can enrich metadata without erasing the last availability evidence.
+      admitted.push({
+        ...item,
+        title: old.title,
+        availability_status: old.availability_status,
+        availability_checked_at: old.availability_checked_at,
+        complete_sources_reported: old.complete_sources_reported,
+      });
+    }
+  }
+  return mergeResults(previous, admitted);
+}
 export function bytes(n: number | null): string {
   if (n === null) return "Tamaño desconocido";
   if (n < 1024) return `${n} B`;

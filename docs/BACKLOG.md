@@ -1,34 +1,26 @@
-# MAGNETRON 0.9.0 release checklist
+# MAGNETRON release checklist
 
-Updated October 28, 2026. Published baseline: 0.8.1. Version 0.9.0 is a working candidate, not a published release.
+Updated November 6, 2026. Published baseline: 0.9.1. The owner has authorised preparation and publication of 0.9.2 after validation.
 
-## Completed baseline
+## Delivered baseline
 
-- Unified search and links, torrent v1/hybrid/v2 and eD2k transfers, direct destinations and safe payload deletion.
-- Source automation, optional DHT/Kad discovery, explicit folder sharing and transfer limits.
-- Spanish/English, appearance controls, integrated downloads, close-to-tray and Windows signed updates.
-- Crash containment, atomic private queues with checkpoint recovery, real engine restart, dependency fixes and browser accessibility corrections.
-- Four-platform 30-minute recovery matrix and package checks passed at 1d47bd5. See SECURITY-REVIEW.md for exact evidence and limits.
+- Unified search/link input, local torrent-file drops, torrent v1/hybrid/v2, eD2k and individual YouTube transfers.
+- Direct destinations, transfer limits, explicit folder sharing, safe removal, integrated downloads and close-to-tray.
+- Spanish/English, appearance controls, source automation and optional DHT/Kad discovery.
+- Queue recovery, owned-engine crash containment, installed version display and five signed application-update channels.
+- Version 0.9.0 and 0.9.1 package, runtime, security and accessibility checks passed; prolonged recovery evidence is documented for 0.9.0. Do not infer that future builds inherit those results automatically.
 
-## Verified for the 0.9.0 candidate
+## 0.9.2 delivery
 
-- Installed version visible in Settings / MAGNETRON updates.
-- Individual YouTube links through the existing input and download list; default maximum quality in Settings.
-- Private pinned video tools, local-only FFmpeg build, no user-installed dependencies.
-- Signed native update manifests and installers for Linux AppImage/Debian and both Mac architectures, with startup acknowledgement and application recovery.
+- Implemented and locally tested: retain admitted search rows after availability evidence expires, including incoming batches, idle/completed searches, weak duplicates, filters and exports.
+- Pending final release validation: fresh signed Windows/Linux/Mac packages, runtime and updater checks, security/accessibility checks and a point-in-time Defender scan of the exact Windows release samples.
+- Publish only the verified complete upload set; no additional owner approval is needed for this authorised 0.9.2 release.
 
-## Delivery status and publication checkpoint
+## Follow-up work
 
-- Completed: fresh video, updater, security, accessibility, native package and four-platform 30-minute recovery checks passed at 05295dd.
-- Completed: actual signed package bytes were verified for all five update channels; package/install/runtime checks passed.
-- Completed: versioned installers, matching source, manifests and release notes are prepared; final upload-set checksums are generated alongside the kit. See [verification](VERIFICATION-0.9.0.md).
-- Obtain owner approval for the concrete new GitHub release; publish only after acceptance.
-- Prepare SourceForge profile and upload set after the GitHub release.
+- SourceForge profile/upload preparation follows the GitHub release.
+- End-user graphical native-update, polkit, Gatekeeper and screen-reader reports remain useful external validation.
+- Windows Authenticode and Apple Developer ID/notarisation require publisher credentials. They are independent of update manifest signing.
+- Independent security/privacy review is not represented by the maintainer's automated tests or antivirus scans.
 
-## External validation and optional certification
-
-- End-user graphical update tests, polkit authorisation and Mac Gatekeeper reports.
-- Apple Developer ID/notarisation and Windows Authenticode require external publisher credentials. They do not replace the application's update signatures.
-- Independent security/privacy and screen-reader reviews are not represented by the maintainer's automated checks.
-
-Private indexer accounts, Windows/Linux ARM packages and hard CPU/total-disk quotas are future scope, not part of this candidate.
+Private indexer accounts, Windows/Linux ARM packages and hard CPU/total-disk quotas remain future scope.

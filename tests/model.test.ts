@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   mergeResults,
+  mergeSearchResults,
   isCurrentlyAvailable,
   bytes,
   rank,
@@ -123,7 +124,7 @@ describe("Disponibilidad obligatoria", () => {
     ).toBe(false);
     expect(isCurrentlyAvailable(torrent("a"), now)).toBe(false);
   });
-  it("solo admite la comprobación directa reciente y retira resultados caducados", () => {
+  it("solo considera actual una comprobación directa reciente", () => {
     const t = {
       ...torrent("a"),
       availability_status: "verified",
@@ -201,4 +202,68 @@ it("ranks exact query words above substrings, even with many reported sources", 
       b = { ...torrent("b", Array(100).fill("source")), title: c.bad };
     expect(rank(a, c.q)).toBeGreaterThan(rank(b, c.q));
   }
+});
+
+describe("Search result retention", () => {
+  it("keeps admitted rows across empty batches, expiration and weaker duplicates without admitting unchecked new rows", () => {
+    const now = Date.parse("2026-11-05T12:00:00Z");
+    const first = {
+      ...torrent("first"),
+      availability_status: "verified",
+      availability_checked_at: new Date(now).toISOString(),
+    };
+    let rows = mergeSearchResults([], [first, torrent("unverified")], now);
+    expect(rows.map((t) => t.id)).toEqual(["first"]);
+    const later = now + 24 * 60 * 60_000;
+    expect(isCurrentlyAvailable(first, later)).toBe(false);
+    rows = mergeSearchResults(rows, [], later);
+    const second = {
+      ...first,
+      id: "second",
+      availability_status: "verified_v2",
+      availability_checked_at: new Date(later).toISOString(),
+    };
+    rows = mergeSearchResults(
+      rows,
+      [
+        second,
+        { ...torrent("first", ["other"]), files: ["film.mkv"] },
+        { ...first, id: "stale-cache" },
+      ],
+      later,
+    );
+    expect(rows.map((t) => t.id)).toEqual(["first", "second"]);
+    expect(rows[0].availability_status).toBe("verified");
+    expect(rows[0].availability_checked_at).toBe(first.availability_checked_at);
+    expect(rows[0].sources).toEqual(["ubuntu", "other"]);
+    expect(rows[0].files).toEqual(["film.mkv"]);
+    expect(first.files).toEqual([]);
+    const refreshed = { ...second, id: "first" };
+    expect(
+      mergeSearchResults(rows, [refreshed], later)[0].availability_checked_at,
+    ).toBe(refreshed.availability_checked_at);
+  });
+  it("retains admitted eD2k reports while keeping zero-complete-source candidates out", () => {
+    const now = Date.parse("2026-11-05T12:00:00Z");
+    const ed = {
+      ...torrent("ed2k:hash:42"),
+      network: "ed2k" as const,
+      availability_status: "reported_complete",
+      complete_sources_reported: 2,
+      availability_checked_at: new Date(now).toISOString(),
+    };
+    const rows = mergeSearchResults([], [ed], now);
+    const later = now + 6 * 60_000;
+    expect(
+      mergeSearchResults(
+        rows,
+        [
+          { ...ed, complete_sources_reported: 0 },
+          { ...ed, id: "ed2k:other:42", complete_sources_reported: 0 },
+        ],
+        later,
+      ),
+    ).toMatchObject(rows);
+    expect(mergeSearchResults([], [ed], later)).toEqual([]);
+  });
 });
