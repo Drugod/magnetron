@@ -1,6 +1,6 @@
 # MAGNETRON release checklist
 
-Updated November 6, 2026. Published baseline: 0.9.1. The owner has authorised preparation and publication of 0.9.2 after validation.
+Updated November 6, 2026. Published baseline: [0.9.2](https://github.com/Drugod/magnetron/releases/tag/v0.9.2). The authorised release has been published and its public download/update links verified.
 
 ## Delivered baseline
 
@@ -13,8 +13,8 @@ Updated November 6, 2026. Published baseline: 0.9.1. The owner has authorised pr
 ## 0.9.2 delivery
 
 - Implemented and locally tested: retain admitted search rows after availability evidence expires, including incoming batches, idle/completed searches, weak duplicates, filters and exports.
-- Pending final release validation: fresh signed Windows/Linux/Mac packages, runtime and updater checks, security/accessibility checks and a point-in-time Defender scan of the exact Windows release samples.
-- Publish only the verified complete upload set; no additional owner approval is needed for this authorised 0.9.2 release.
+- Completed: fresh signed Windows/Linux/Mac packages, runtime and updater checks, security/accessibility checks and point-in-time Defender scans of the exact Windows installer and application sample. No threats were reported with security intelligence 1.463.153.0.
+- Completed: 19 release assets, corresponding source, five signed update manifests, antivirus evidence and full SHA-256 inventory published and verified. See [verification](VERIFICATION-0.9.2.md).
 
 ## Follow-up work
 
