@@ -17,4 +17,6 @@ Windows x64 is the primary package. Linux x64 (Debian/AppImage) and macOS Intel/
 
 ## Security review
 
+Bundled SQLite is updated to libsqlite3-sys 0.39.1 / SQLite 3.54.1 through rusqlite 0.41.1 (RUSTSEC-2026-0459). rustix is updated to 1.1.6 (RUSTSEC-2026-0486), and the yanked async-executor release is replaced with 1.14.1.
+
 The full npm audit reports an unpatched build-only picomatch denial-of-service advisory. A narrowly scoped, version-checked exception expires on 2026-12-02; it does not apply to production dependencies or other advisories. See [the documented assessment](SECURITY-NPM-2026-11.md). Rust and bundled Python checks remain enforced.
