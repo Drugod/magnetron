@@ -143,6 +143,48 @@ impl Storage {
         db.execute_batch("CREATE TABLE IF NOT EXISTS favorites(id TEXT PRIMARY KEY,json TEXT NOT NULL,saved_at INTEGER NOT NULL);").map_err(|e|e.to_string())?;
         Ok(Self { db })
     }
+    /// Seed only a fresh preference row; upgrades and explicit empty choices are preserved.
+    pub fn initialize_preferences(
+        &self,
+        downloads: Option<&std::path::Path>,
+    ) -> Result<(), String> {
+        let configured: bool = self
+            .db
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM settings WHERE key='preferences')",
+                [],
+                |row| row.get(0),
+            )
+            .map_err(|e| e.to_string())?;
+        if configured {
+            return Ok(());
+        }
+        let folder = downloads
+            .filter(|root| root.is_absolute())
+            .and_then(|root| {
+                let path = root.join("magnetron");
+                let name = path.to_str()?;
+                if name.len() > 32760 || name.chars().any(char::is_control) {
+                    return None;
+                }
+                // If the OS folder is unavailable, keep the existing first-download chooser fallback.
+                std::fs::create_dir_all(&path).ok()?;
+                Some(name.to_owned())
+            })
+            .unwrap_or_default();
+        let settings = Settings {
+            download_folder: folder,
+            ..Settings::default()
+        };
+        settings.validate()?;
+        self.db
+            .execute(
+                "INSERT OR IGNORE INTO settings(key,value) VALUES ('preferences',?1)",
+                [serde_json::to_string(&settings).map_err(|e| e.to_string())?],
+            )
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
     pub fn settings(&self) -> Result<Settings, String> {
         let mut stmt = self
             .db
@@ -364,6 +406,77 @@ impl Storage {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn first_launch_creates_and_persists_the_os_downloads_subfolder() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("preferences.sqlite");
+        let downloads = temp.path().join("Redirected Downloads ñ");
+        let storage = Storage::new(&path).unwrap();
+        storage.initialize_preferences(Some(&downloads)).unwrap();
+        let expected = downloads.join("magnetron");
+        assert!(expected.is_dir());
+        assert_eq!(
+            storage.settings().unwrap().download_folder,
+            expected.to_str().unwrap()
+        );
+        drop(storage);
+        let reopened = Storage::new(&path).unwrap();
+        let other = temp.path().join("Other Downloads");
+        reopened.initialize_preferences(Some(&other)).unwrap();
+        assert_eq!(
+            reopened.settings().unwrap().download_folder,
+            expected.to_str().unwrap()
+        );
+        assert!(
+            !other.exists(),
+            "An existing preference must not create a new default folder"
+        );
+    }
+    #[test]
+    fn first_launch_defaults_do_not_overwrite_existing_or_cleared_preferences() {
+        let temp = tempfile::tempdir().unwrap();
+        let candidate = temp.path().join("Downloads");
+        for folder in [Some("custom destination"), Some(""), None] {
+            let storage = Storage::new(std::path::Path::new(":memory:")).unwrap();
+            if let Some(folder) = folder {
+                let settings = Settings {
+                    download_folder: folder.into(),
+                    ..Settings::default()
+                };
+                storage.save_settings(&settings).unwrap();
+            } else {
+                storage
+                    .db
+                    .execute(
+                        "INSERT INTO settings(key,value) VALUES ('preferences',?1)",
+                        ["{\"history\":true}"],
+                    )
+                    .unwrap();
+            }
+            let before = storage.settings().unwrap();
+            storage.initialize_preferences(Some(&candidate)).unwrap();
+            let after = storage.settings().unwrap();
+            assert_eq!(after.download_folder, before.download_folder);
+            assert_eq!(after.history, before.history);
+            assert!(!candidate.exists());
+        }
+    }
+    #[test]
+    fn unavailable_default_folder_keeps_the_first_download_chooser_fallback() {
+        let temp = tempfile::tempdir().unwrap();
+        let blocked = temp.path().join("not-a-directory");
+        std::fs::write(&blocked, b"preserve existing file").unwrap();
+        for folder in [
+            Some(blocked.as_path()),
+            None,
+            Some(std::path::Path::new("relative")),
+        ] {
+            let storage = Storage::new(std::path::Path::new(":memory:")).unwrap();
+            storage.initialize_preferences(folder).unwrap();
+            assert!(storage.settings().unwrap().download_folder.is_empty());
+        }
+        assert_eq!(std::fs::read(&blocked).unwrap(), b"preserve existing file");
+    }
     #[test]
     fn settings_and_schema() {
         let s = Storage::new(std::path::Path::new(":memory:")).unwrap();

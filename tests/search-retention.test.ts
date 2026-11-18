@@ -31,7 +31,10 @@ it("keeps every admitted result while time passes and new batches arrive, until 
     if (delay === 15000) refresh.push(callback as () => void);
     return 0;
   });
+  let failSearch = false;
   api.invoke.mockImplementation(async (command: string) => {
+    if (command === "start_search" && failSearch)
+      throw "Search backend unavailable";
     if (command === "get_settings") return { ...defaults };
     return [];
   });
@@ -40,6 +43,22 @@ it("keeps every admitted result while time passes and new batches arrive, until 
     await import("../src/main");
     const query = document.querySelector<HTMLTextAreaElement>("#query")!;
     const form = document.querySelector("#search-form")!;
+    const busy = (active: boolean) => {
+      expect(form.getAttribute("aria-busy")).toBe(String(active));
+      for (const id of ["search-spinner", "search-button-spinner"]) {
+        const spinner = document.getElementById(id)!;
+        expect(spinner.hidden).toBe(!active);
+        expect(spinner.getAttribute("aria-hidden")).toBe("true");
+      }
+      expect(document.getElementById("search-arrow")!.hidden).toBe(active);
+      expect(
+        document.querySelector<HTMLButtonElement>("#search-button")!.disabled,
+      ).toBe(false);
+    };
+    expect(document.getElementById("search-state")!.getAttribute("role")).toBe(
+      "status",
+    );
+    busy(false);
     query.value = "film";
     form.dispatchEvent(new Event("submit", { cancelable: true }));
     await vi.waitFor(() =>
@@ -52,6 +71,7 @@ it("keeps every admitted result while time passes and new batches arrive, until 
       api.invoke.mock.calls.filter(([cmd]) => cmd === "start_search").at(-1)![1]
         .searchId as string;
     const firstId = searchId();
+    busy(true);
     const event = (kind: string, results: Torrent[] = [], id = firstId) =>
       api.events.get("search-event")!({
         payload: { search_id: id, kind, results, source: null, message: null },
@@ -74,6 +94,11 @@ it("keeps every admitted result while time passes and new batches arrive, until 
       [...document.querySelectorAll("#results > .result h3")].map(
         (n) => n.textContent,
       );
+    event("checking");
+    busy(true);
+    expect(document.getElementById("search-state-text")!.textContent).toContain(
+      "Comprobando",
+    );
     const first = item("first", "Film One.mkv");
     event("batch", [first]);
     expect(rows()).toEqual(["Film One.mkv"]);
@@ -107,7 +132,9 @@ it("keeps every admitted result while time passes and new batches arrive, until 
     ]);
     expect(rows()).toHaveLength(3);
     expect(rows()).toContain("Film One.mkv");
+    busy(true);
     event("done");
+    busy(false);
     now += 24 * 60 * 60_000;
     refresh.forEach((tick) => tick());
     expect(rows()).toHaveLength(3);
@@ -154,9 +181,36 @@ it("keeps every admitted result while time passes and new batches arrive, until 
     expect(rows()).toHaveLength(0);
     event("batch", [item("new", "New search.mkv")], searchId());
     expect(rows()).toEqual(["New search.mkv"]);
+    busy(true);
+    event("done"); // A late completion from the old query cannot stop the new spinner.
+    busy(true);
     query.value = "third search";
     form.dispatchEvent(new Event("submit", { cancelable: true }));
     expect(rows()).toHaveLength(0);
+    for (const kind of ["limited", "cancelled", "error", "done"]) {
+      const text = `terminal ${kind}`;
+      query.value = text;
+      form.dispatchEvent(new Event("submit", { cancelable: true }));
+      await vi.waitFor(() =>
+        expect(api.invoke).toHaveBeenCalledWith(
+          "start_search",
+          expect.objectContaining({ query: text }),
+        ),
+      );
+      busy(true);
+      event(kind, [], searchId());
+      busy(false);
+    }
+    failSearch = true;
+    query.value = "backend failure";
+    form.dispatchEvent(new Event("submit", { cancelable: true }));
+    await vi.waitFor(() =>
+      expect(api.invoke).toHaveBeenCalledWith(
+        "start_search",
+        expect.objectContaining({ query: "backend failure" }),
+      ),
+    );
+    await vi.waitFor(() => busy(false));
     setLanguage("es");
   } finally {
     vi.restoreAllMocks();

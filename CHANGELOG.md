@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.3
+
+- Show animated search progress in the search button and status, with accessible status text and reduced-motion support.
+- Seed new installation preferences with the actual OS Downloads/magnetron directory; preserve existing and cleared destinations and the chooser fallback.
+
 ## 0.9.2
 
 - Preserve admitted search results when availability evidence ages, while new batches arrive and after searches finish.

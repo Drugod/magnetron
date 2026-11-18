@@ -696,6 +696,10 @@ fn main() {
             crate::secure_fs::private_dir(&dir).map_err(std::io::Error::other)?;
             let storage =
                 Storage::new(&dir.join("magnet.sqlite")).map_err(std::io::Error::other)?;
+            let downloads_dir = app.path().download_dir().ok();
+            storage
+                .initialize_preferences(downloads_dir.as_deref())
+                .map_err(std::io::Error::other)?;
             let runtime = if cfg!(debug_assertions) {
                 platform::dev_runtime()
             } else {
