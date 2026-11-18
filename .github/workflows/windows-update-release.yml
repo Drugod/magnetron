@@ -35,7 +35,7 @@ jobs:
           if ($env:RELEASE_TAG -ne "v$version") { throw 'Tag/version mismatch' }
           if ((Get-Content src-tauri/update-public-key.txt -Raw).Trim() -notmatch '^[a-f0-9]{64}$') { throw 'Missing trusted public key' }
           "RELEASE_VERSION=$version" >> $env:GITHUB_ENV
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "24"
           cache: npm
