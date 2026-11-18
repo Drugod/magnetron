@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.4
+
+- Move Updates out of Shared folders into an independent Settings section.
+- Check for signed updates at startup and offer Update now / Later, with explicit consent, preparation feedback and once-per-version session prompts.
+- Use one large continuous central search ring; preserve it across result batches and slow it under reduced motion instead of stopping it.
+
 ## 0.9.3
 
 - Show animated search progress in the search button and status, with accessible status text and reduced-motion support.

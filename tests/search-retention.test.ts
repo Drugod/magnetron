@@ -45,12 +45,17 @@ it("keeps every admitted result while time passes and new batches arrive, until 
     const form = document.querySelector("#search-form")!;
     const busy = (active: boolean) => {
       expect(form.getAttribute("aria-busy")).toBe(String(active));
-      for (const id of ["search-spinner", "search-button-spinner"]) {
+      for (const id of ["search-spinner"]) {
         const spinner = document.getElementById(id)!;
         expect(spinner.hidden).toBe(!active);
         expect(spinner.getAttribute("aria-hidden")).toBe("true");
       }
-      expect(document.getElementById("search-arrow")!.hidden).toBe(active);
+      expect(document.getElementById("search-arrow")!.hidden).toBe(false);
+      expect(document.getElementById("search-progress")!.hidden).toBe(!active);
+      expect(document.querySelectorAll(".search-spinner")).toHaveLength(1);
+      expect(
+        document.querySelector("#search-button .search-spinner"),
+      ).toBeNull();
       expect(
         document.querySelector<HTMLButtonElement>("#search-button")!.disabled,
       ).toBe(false);

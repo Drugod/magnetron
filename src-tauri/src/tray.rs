@@ -21,12 +21,20 @@ pub fn restore(app: &tauri::AppHandle) {
     }
 }
 pub fn exit(app: tauri::AppHandle) {
-    shutdown(app, None)
+    shutdown(app, None, None)
 }
-pub fn exit_for_update(app: tauri::AppHandle, path: std::path::PathBuf) {
-    shutdown(app, Some(path))
+pub fn exit_for_update(
+    app: tauri::AppHandle,
+    path: std::path::PathBuf,
+    guard: tokio::sync::MutexGuard<'static, ()>,
+) {
+    shutdown(app, Some(path), Some(guard))
 }
-fn shutdown(app: tauri::AppHandle, installer: Option<std::path::PathBuf>) {
+fn shutdown(
+    app: tauri::AppHandle,
+    installer: Option<std::path::PathBuf>,
+    update_guard: Option<tokio::sync::MutexGuard<'static, ()>>,
+) {
     if app
         .state::<TrayState>()
         .exiting
@@ -35,6 +43,7 @@ fn shutdown(app: tauri::AppHandle, installer: Option<std::path::PathBuf>) {
         return;
     }
     tauri::async_runtime::spawn(async move {
+        let _update_guard = update_guard;
         // Native installers wait for this process to exit. Validate and spawn
         // them before stopping transfers, so an unwritable location leaves the
         // running application fully usable.

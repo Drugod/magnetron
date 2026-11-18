@@ -221,6 +221,16 @@ pub async fn check_app_update(app: tauri::AppHandle) -> Result<Status, String> {
             return Err("Se ha rechazado una actualización anterior a la ya preparada".into());
         }
     }
+    // Notify as soon as the signed manifest identifies a newer official version.
+    // Installation remains gated on the verified staged package below.
+    let _ = app.emit(
+        "app-update-available",
+        Status {
+            configured: true,
+            ready: false,
+            version: Some(release.version.clone()),
+        },
+    );
     if !staged(&root, key).is_ok_and(|s| s.version == release.version && s.sha256 == release.sha256)
     {
         let bytes = get(&client, &release.url, release.size as usize).await?;
@@ -240,13 +250,32 @@ pub async fn check_app_update(app: tauri::AppHandle) -> Result<Status, String> {
     let _ = app.emit("app-update-ready", &status);
     Ok(status)
 }
+fn validate_install(
+    root: &Path,
+    key: &str,
+    installed: &str,
+    expected: &str,
+) -> Result<Release, String> {
+    let release = validate_staged(root, key, installed)?;
+    if release.version != expected {
+        return Err(
+            "La versión preparada ha cambiado. Vuelve a confirmar la actualización.".into(),
+        );
+    }
+    Ok(release)
+}
 #[tauri::command]
-pub async fn install_app_update(app: tauri::AppHandle) -> Result<(), String> {
-    let _guard = CONTROL.lock().await;
+pub async fn install_app_update(
+    app: tauri::AppHandle,
+    expected_version: String,
+) -> Result<(), String> {
+    let guard = CONTROL.lock().await;
     let (_, key) = channel().ok_or("Canal de publicación pendiente")?;
     let root = root(&app)?;
-    staged(&root, key)?;
-    crate::tray::exit_for_update(app, root.join("installer.exe"));
+    validate_install(&root, key, env!("CARGO_PKG_VERSION"), &expected_version)?;
+    // Keep staging locked through shutdown, so another check cannot replace the
+    // exact package/version the user consented to while engines are stopping.
+    crate::tray::exit_for_update(app, root.join("installer.exe"), guard);
     Ok(())
 }
 pub fn configured() -> bool {
@@ -482,6 +511,8 @@ mod tests {
         .unwrap();
         std::fs::write(temporary.path().join("manifest.json"), manifest).unwrap();
         assert!(validate_staged(temporary.path(), key, "0.8.1").is_ok());
+        assert!(validate_install(temporary.path(), key, "0.8.1", &release.version).is_ok());
+        assert!(validate_install(temporary.path(), key, "0.8.1", "0.0.0").is_err());
         assert!(validate_staged(temporary.path(), key, &release.version).is_err());
         use std::io::{Read, Seek, SeekFrom, Write};
         let mut file = std::fs::OpenOptions::new()
@@ -512,6 +543,8 @@ mod tests {
         .unwrap();
         std::fs::write(dir.path().join("manifest.json"), manifest).unwrap();
         assert!(validate_staged(dir.path(), key, "0.8.0").is_ok());
+        assert!(validate_install(dir.path(), key, "0.8.0", &release.version).is_ok());
+        assert!(validate_install(dir.path(), key, "0.8.0", "0.0.0").is_err());
         assert!(validate_staged(dir.path(), key, &release.version).is_err());
         // Change one byte, preserving length: the digest must reject it.
         use std::io::{Read, Seek, SeekFrom, Write};

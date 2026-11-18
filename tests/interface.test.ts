@@ -21,6 +21,12 @@ it("keeps one search/link field, places sources first in settings and switches l
   expect(document.querySelector("#settings-dialog")!.children[1].id).toBe(
     "sources-settings",
   );
+  expect(document.getElementById("app-updates")!.parentElement!.id).toBe(
+    "settings-form",
+  );
+  expect(
+    document.getElementById("app-updates")!.parentElement!.closest("details"),
+  ).toBeNull();
   expect(document.querySelector("#nav-settings")!.textContent).toBe("");
   expect(document.querySelector("#nav-settings svg")).not.toBeNull();
   document.querySelector<HTMLButtonElement>("#nav-settings")!.click();
