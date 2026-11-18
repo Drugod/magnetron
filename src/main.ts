@@ -54,9 +54,9 @@ app.innerHTML = `
 <div class="workspace">
 <header class="window-controls" aria-label="Preferencias rápidas"><select id="language-select" aria-label="Idioma" title="Idioma"><option value="es" data-no-i18n>Español</option><option value="en" data-no-i18n>English</option></select><select id="appearance-select" aria-label="Apariencia" title="Apariencia"><option value="system">Sistema</option><option value="light">Claro</option><option value="dark">Oscuro</option></select></header>
 <main><h1 class="search-title">Buscar</h1>
-<form id="search-form" class="search-box" title="Arrastra aquí archivos .torrent para descargarlos">${icon("search")}<textarea id="query" rows="1" maxlength="1000000" placeholder="Buscar o pegar enlaces…" autocomplete="off" aria-label="Buscar o pegar enlaces" spellcheck="false"></textarea><button type="button" id="clear-search" class="clear-search" aria-label="Limpiar búsqueda" title="Limpiar búsqueda" hidden>×</button><kbd>Ctrl K</kbd><button type="submit" id="search-button" aria-label="Buscar o descargar">${icon("arrow")}</button></form>
+<form id="search-form" class="search-box" aria-busy="false" title="Arrastra aquí archivos .torrent para descargarlos">${icon("search")}<textarea id="query" rows="1" maxlength="1000000" placeholder="Buscar o pegar enlaces…" autocomplete="off" aria-label="Buscar o pegar enlaces" spellcheck="false"></textarea><button type="button" id="clear-search" class="clear-search" aria-label="Limpiar búsqueda" title="Limpiar búsqueda" hidden>×</button><kbd>Ctrl K</kbd><button type="submit" id="search-button" aria-label="Buscar o descargar"><span id="search-arrow" aria-hidden="true">${icon("arrow")}</span><span id="search-button-spinner" class="search-spinner" aria-hidden="true" hidden></span></button></form>
 <section id="browser-notice" class="notice" hidden>Vista previa de interfaz. La búsqueda real y SQLite funcionan en la aplicación de escritorio. Ejecuta <code>npm run desktop</code>.</section>
-<div class="results-heading"><div><h2 id="results-title">Listo para explorar</h2><span id="result-count">Catálogos públicos, resultados reales.</span></div><span id="search-state" class="quiet-status"><span class="dot"></span> En espera</span></div>
+<div class="results-heading"><div><h2 id="results-title">Listo para explorar</h2><span id="result-count">Catálogos públicos, resultados reales.</span></div><span id="search-state" class="quiet-status" role="status" aria-live="polite"><span id="search-spinner" class="search-spinner" aria-hidden="true" hidden></span><span id="search-state-text">En espera</span></span></div>
 <div class="filter-bar"><div class="filter-left"><select id="type-filter" aria-label="Filtrar por tipo de contenido"><option value="all">Todos los ficheros</option><option value="iso">ISO / imágenes de disco</option><option value="video">Vídeo</option><option value="documents">Documentos</option><option value="audio">Audio</option><option value="images">Imágenes</option><option value="archives">Comprimidos</option><option value="software">Programas / juegos</option><option value="other">Otros ficheros</option><option value="unknown">Sin clasificar</option></select></div><select id="sort" aria-label="Ordenar resultados"><option value="relevance">Orden: relevancia</option><option value="size">Orden: tamaño</option><option value="date">Orden: recientes</option><option value="name">Orden: nombre</option></select></div>
 <p class="filter-hint" id="filter-hint" hidden>El tipo se obtiene de la categoría de la fuente o de las extensiones conocidas. Los paquetes mixtos pueden aparecer en varios tipos.</p><div id="results"></div><div id="empty" class="empty"><h3>Empieza por una buena búsqueda.</h3><p>Consultamos las fuentes por ti y agrupamos las coincidencias.<br>Los resultados aparecerán aquí, conforme lleguen.</p></div>
 </main></div>
@@ -334,8 +334,12 @@ function textEl(tag: string, text: string, className = "") {
   return el;
 }
 function state(text: string) {
-  $("#search-state").textContent = text;
+  $("#search-state-text").textContent = text;
   $("#search-state").classList.toggle("running", searching);
+  $("#search-form").setAttribute("aria-busy", String(searching));
+  $("#search-spinner").hidden = !searching;
+  $("#search-button-spinner").hidden = !searching;
+  $("#search-arrow").hidden = searching;
 }
 function render() {
   const type = $<HTMLSelectElement>("#type-filter").value;

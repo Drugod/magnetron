@@ -326,13 +326,37 @@ main {
 .quiet-status.running {
   color: var(--accent);
 }
-.dot {
+#search-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.search-spinner {
   display: inline-block;
-  width: 5px;
-  height: 5px;
-  background: var(--muted);
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  box-sizing: border-box;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
   border-radius: 50%;
-  margin-right: 5px;
+  animation: search-spin 0.8s linear infinite;
+}
+.search-spinner[hidden],
+#search-arrow[hidden] {
+  display: none;
+}
+#search-button .search-spinner {
+  width: 19px;
+  height: 19px;
+}
+#search-arrow {
+  display: inline-flex;
+}
+@keyframes search-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 .filter-bar {
   display: flex;
