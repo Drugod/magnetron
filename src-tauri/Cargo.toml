@@ -46,7 +46,7 @@ windows-sys = { version = "0.61", features = ["Win32_System_JobObjects", "Win32_
 
 # tauri-plugin-deep-link 2.6.2 constructs the two-field ParseOption API.
 [target.'cfg(target_os = "linux")'.dependencies]
-rust-ini = "=0.21.1"
+rust-ini = "=0.21.3"
 glib = "=0.18.5"
 
 [profile.release]
