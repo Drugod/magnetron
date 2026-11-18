@@ -28,7 +28,7 @@ jobs:
         with:
           workspaces: src-tauri -> target
           cache-on-failure: "true"
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: vendor/video-build
           key: video-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/video-assets.json', 'scripts/prepare-video.py') }}
