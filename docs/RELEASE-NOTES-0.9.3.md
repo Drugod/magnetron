@@ -14,3 +14,7 @@ Search status is exposed to assistive technology. With reduced motion enabled, t
 ## Distribution
 
 Windows x64 is the primary package. Linux x64 (Debian/AppImage) and macOS Intel/Apple Silicon (macOS 15+) remain experimental. All five signed update channels remain supported. The upload set includes source, verification evidence, SHA-256 checksums and a point-in-time Windows Defender report. Update signatures are separate from publisher Authenticode/Apple Developer ID certification, which is not configured.
+
+## Security review
+
+The full npm audit reports an unpatched build-only picomatch denial-of-service advisory. A narrowly scoped, version-checked exception expires on 2026-12-02; it does not apply to production dependencies or other advisories. See [the documented assessment](SECURITY-NPM-2026-11.md). Rust and bundled Python checks remain enforced.
