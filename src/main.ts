@@ -1,6 +1,4 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
-import { getVersion } from "@tauri-apps/api/app";
-import packageInfo from "../package.json";
 import { listen } from "@tauri-apps/api/event";
 import {
   bytes,
@@ -16,6 +14,7 @@ import {
   type SearchEvent,
 } from "./model";
 import "./style.css";
+import { setupAppUpdates } from "./app-updates";
 import { setupDownloads } from "./downloads";
 import { setupTorrentDrop } from "./torrent-drop";
 import { setupViews, showView } from "./views";
@@ -54,13 +53,13 @@ app.innerHTML = `
 <div class="workspace">
 <header class="window-controls" aria-label="Preferencias rápidas"><select id="language-select" aria-label="Idioma" title="Idioma"><option value="es" data-no-i18n>Español</option><option value="en" data-no-i18n>English</option></select><select id="appearance-select" aria-label="Apariencia" title="Apariencia"><option value="system">Sistema</option><option value="light">Claro</option><option value="dark">Oscuro</option></select></header>
 <main><h1 class="search-title">Buscar</h1>
-<form id="search-form" class="search-box" aria-busy="false" title="Arrastra aquí archivos .torrent para descargarlos">${icon("search")}<textarea id="query" rows="1" maxlength="1000000" placeholder="Buscar o pegar enlaces…" autocomplete="off" aria-label="Buscar o pegar enlaces" spellcheck="false"></textarea><button type="button" id="clear-search" class="clear-search" aria-label="Limpiar búsqueda" title="Limpiar búsqueda" hidden>×</button><kbd>Ctrl K</kbd><button type="submit" id="search-button" aria-label="Buscar o descargar"><span id="search-arrow" aria-hidden="true">${icon("arrow")}</span><span id="search-button-spinner" class="search-spinner" aria-hidden="true" hidden></span></button></form>
+<form id="search-form" class="search-box" aria-busy="false" title="Arrastra aquí archivos .torrent para descargarlos">${icon("search")}<textarea id="query" rows="1" maxlength="1000000" placeholder="Buscar o pegar enlaces…" autocomplete="off" aria-label="Buscar o pegar enlaces" spellcheck="false"></textarea><button type="button" id="clear-search" class="clear-search" aria-label="Limpiar búsqueda" title="Limpiar búsqueda" hidden>×</button><kbd>Ctrl K</kbd><button type="submit" id="search-button" aria-label="Buscar o descargar"><span id="search-arrow" aria-hidden="true">${icon("arrow")}</span></button></form>
 <section id="browser-notice" class="notice" hidden>Vista previa de interfaz. La búsqueda real y SQLite funcionan en la aplicación de escritorio. Ejecuta <code>npm run desktop</code>.</section>
-<div class="results-heading"><div><h2 id="results-title">Listo para explorar</h2><span id="result-count">Catálogos públicos, resultados reales.</span></div><span id="search-state" class="quiet-status" role="status" aria-live="polite"><span id="search-spinner" class="search-spinner" aria-hidden="true" hidden></span><span id="search-state-text">En espera</span></span></div>
+<div class="results-heading"><div><h2 id="results-title">Listo para explorar</h2><span id="result-count">Catálogos públicos, resultados reales.</span></div><span id="search-state" class="quiet-status" role="status" aria-live="polite"><span id="search-state-text">En espera</span></span></div>
 <div class="filter-bar"><div class="filter-left"><select id="type-filter" aria-label="Filtrar por tipo de contenido"><option value="all">Todos los ficheros</option><option value="iso">ISO / imágenes de disco</option><option value="video">Vídeo</option><option value="documents">Documentos</option><option value="audio">Audio</option><option value="images">Imágenes</option><option value="archives">Comprimidos</option><option value="software">Programas / juegos</option><option value="other">Otros ficheros</option><option value="unknown">Sin clasificar</option></select></div><select id="sort" aria-label="Ordenar resultados"><option value="relevance">Orden: relevancia</option><option value="size">Orden: tamaño</option><option value="date">Orden: recientes</option><option value="name">Orden: nombre</option></select></div>
-<p class="filter-hint" id="filter-hint" hidden>El tipo se obtiene de la categoría de la fuente o de las extensiones conocidas. Los paquetes mixtos pueden aparecer en varios tipos.</p><div id="results"></div><div id="empty" class="empty"><h3>Empieza por una buena búsqueda.</h3><p>Consultamos las fuentes por ti y agrupamos las coincidencias.<br>Los resultados aparecerán aquí, conforme lleguen.</p></div>
+<p class="filter-hint" id="filter-hint" hidden>El tipo se obtiene de la categoría de la fuente o de las extensiones conocidas. Los paquetes mixtos pueden aparecer en varios tipos.</p><div id="search-progress" class="search-progress" hidden><h3>Buscando fuentes completas accesibles…</h3><span id="search-spinner" class="search-spinner" aria-hidden="true" hidden></span><p>Solo aparecen archivos que superan la comprobación directa. Puede tardar unos minutos.</p></div><div id="results"></div><div id="empty" class="empty"><h3>Empieza por una buena búsqueda.</h3><p>Consultamos las fuentes por ti y agrupamos las coincidencias.<br>Los resultados aparecerán aquí, conforme lleguen.</p></div>
 </main></div>
-<dialog id="settings-dialog"><div class="dialog-heading"><div><span class="eyebrow">A TU MANERA</span><h2>Ajustes</h2></div><button class="icon-button close-dialog" aria-label="Cerrar ajustes">${icon("close")}</button></div><form id="settings-form"><h3>Fuentes de búsqueda</h3><p class="muted">Tus consultas se envían a los operadores de las fuentes activadas.</p><label class="setting-row"><span><strong>Ubuntu Releases</strong><small>Imágenes oficiales · releases.ubuntu.com</small></span><input type="checkbox" name="ubuntu"></label><label class="setting-row"><span><strong>Debian CD</strong><small>Instalación y Live · cdimage.debian.org</small></span><input type="checkbox" name="debian"></label><label class="setting-row"><span><strong>Internet Archive</strong><small>Catálogo público · libros, audio, vídeo y software</small></span><input type="checkbox" name="archive"></label><label class="setting-row"><span>Conservar índice local<small>Busca también metadatos guardados sin aplicarles caducidad.</small></span><input type="checkbox" name="local_index"></label><h3>Recursos y privacidad</h3><label class="setting-row"><span>Guardar historial<small>Solo en este equipo, hasta 100 búsquedas.</small></span><input type="checkbox" name="history"></label><label class="setting-row">Fuentes simultáneas<input name="concurrency" type="number" min="1" max="8" required></label><label class="setting-row">Tiempo por fuente (segundos)<input name="timeout_seconds" type="number" min="5" max="120" required></label><label class="setting-row">Caducidad de caché (horas)<input name="cache_hours" type="number" min="1" max="720" required></label><div class="notice">El descubrimiento DHT se activa en «Fuentes». Funciona solo mientras MAGNETRON está abierto y se pausa al cerrar. BitTorrent y eD2k descargan dentro de MAGNETRON.</div><div class="dialog-actions"><button type="button" id="clear-data" class="danger">Borrar caché e historial</button><button class="primary" type="submit">Guardar ajustes</button></div><p id="settings-feedback" role="status"></p></form></dialog>
+<dialog id="settings-dialog"><div class="dialog-heading"><div><span class="eyebrow">A TU MANERA</span><h2>Ajustes</h2></div><button class="icon-button close-dialog" aria-label="Cerrar ajustes">${icon("close")}</button></div><form id="settings-form"><h3>Fuentes de búsqueda</h3><p class="muted">Tus consultas se envían a los operadores de las fuentes activadas.</p><label class="setting-row"><span><strong>Ubuntu Releases</strong><small>Imágenes oficiales · releases.ubuntu.com</small></span><input type="checkbox" name="ubuntu"></label><label class="setting-row"><span><strong>Debian CD</strong><small>Instalación y Live · cdimage.debian.org</small></span><input type="checkbox" name="debian"></label><label class="setting-row"><span><strong>Internet Archive</strong><small>Catálogo público · libros, audio, vídeo y software</small></span><input type="checkbox" name="archive"></label><label class="setting-row"><span>Conservar índice local<small>Busca también metadatos guardados sin aplicarles caducidad.</small></span><input type="checkbox" name="local_index"></label><h3>Recursos y privacidad</h3><label class="setting-row"><span>Guardar historial<small>Solo en este equipo, hasta 100 búsquedas.</small></span><input type="checkbox" name="history"></label><label class="setting-row">Fuentes simultáneas<input name="concurrency" type="number" min="1" max="8" required></label><label class="setting-row">Tiempo por fuente (segundos)<input name="timeout_seconds" type="number" min="5" max="120" required></label><label class="setting-row">Caducidad de caché (horas)<input name="cache_hours" type="number" min="1" max="720" required></label><div class="notice">El descubrimiento DHT se activa en «Fuentes». Funciona solo mientras MAGNETRON está abierto y se pausa al cerrar. BitTorrent y eD2k descargan dentro de MAGNETRON.</div><div class="dialog-actions" id="settings-actions"><button type="button" id="clear-data" class="danger">Borrar caché e historial</button><button class="primary" type="submit">Guardar ajustes</button></div><p id="settings-feedback" role="status"></p></form></dialog>
 <div id="toast" role="status" hidden></div>`;
 
 const $ = <T extends HTMLElement = HTMLElement>(selector: string) =>
@@ -184,7 +183,7 @@ $("#settings-form").insertAdjacentHTML(
   "beforeend",
   '<p class="muted background-note">Al cerrar la ventana, las descargas continúan en la bandeja del sistema. Para cerrar el programa, elige Salir en su icono.</p>',
 );
-$("#settings-form .dialog-actions").insertAdjacentHTML(
+$("#settings-actions").insertAdjacentHTML(
   "beforebegin",
   `<details class="advanced-settings"><summary>Carpetas compartidas</summary><p class="muted">Solo se comparten las carpetas que actives, incluidos sus subdirectorios. BitTorrent crea un enlace magnet para compartir esa carpeta; eD2k publica sus archivos. Durante las descargas se siguen intercambiando piezas.</p><div id="shared-folders"></div><div class="dialog-actions"><button type="button" id="add-shared-folder" class="text-button">Añadir carpeta</button><button type="button" id="refresh-shares" class="text-button">Actualizar archivos compartidos</button></div><p id="sharing-feedback" role="status"></p></details><details class="advanced-settings"><summary>Índice y recursos</summary><label class="setting-row"><span>Rastreo DHT programado</span><input type="checkbox" name="discovery_enabled"></label><label class="setting-row">Desde la hora (0–23)<input type="number" name="discovery_start_hour" min="0" max="23" required></label><label class="setting-row">Hasta la hora (0–24)<input type="number" name="discovery_end_hour" min="0" max="24" required></label><label class="setting-row">Máximo de registros<input type="number" name="index_max_records" min="1000" max="1000000" required></label><label class="setting-row">Presupuesto de metadatos (MiB)<input type="number" name="index_max_mib" min="32" max="4096" required></label><label class="setting-row">Pausa entre rastreos (segundos)<input type="number" name="discovery_interval_seconds" min="2" max="3600" required></label><label class="setting-row">Tiempo por recuperación (segundos)<input type="number" name="discovery_timeout_seconds" min="5" max="120" required></label><p class="muted">Una recuperación simultánea limita CPU y red. El presupuesto corresponde al texto de metadatos; SQLite, su índice y los temporales ocupan espacio adicional.</p></details>`,
 );
@@ -338,8 +337,7 @@ function state(text: string) {
   $("#search-state").classList.toggle("running", searching);
   $("#search-form").setAttribute("aria-busy", String(searching));
   $("#search-spinner").hidden = !searching;
-  $("#search-button-spinner").hidden = !searching;
-  $("#search-arrow").hidden = searching;
+  $("#search-progress").hidden = !searching;
 }
 function render() {
   const type = $<HTMLSelectElement>("#type-filter").value;
@@ -486,7 +484,7 @@ function render() {
     row.append(glyph, body, actions);
     $("#results").append(row);
   }
-  $("#empty").hidden = filtered.length > 0;
+  $("#empty").hidden = searching || filtered.length > 0;
   if (searched) {
     $("#empty h3").textContent = searching
       ? "Buscando fuentes completas accesibles…"
@@ -908,72 +906,4 @@ $("#dht-pause").onclick = async () => {
 };
 setInterval(() => void refreshIndex(), 3000);
 
-$("#settings-form .dialog-actions").insertAdjacentHTML(
-  "beforebegin",
-  `<details class="advanced-settings"><summary><span>Actualizaciones de MAGNETRON</span> · <span id="installed-app-version"></span></summary><p id="app-update-state" class="muted" role="status">Las actualizaciones se comprueban automáticamente.</p><div class="dialog-actions"><button type="button" id="check-app-update" class="text-button">Comprobar actualizaciones</button><button type="button" id="install-app-update" class="text-button" hidden>Instalar actualización y cerrar</button></div></details>`,
-);
-// Read the installed binary version, independently of available updates.
-$("#installed-app-version").textContent = `v${packageInfo.version}`;
-if (isTauri()) {
-  void getVersion()
-    .then((version) => {
-      $("#installed-app-version").textContent = `v${version}`;
-    })
-    .catch((error) =>
-      console.error("Cannot read installed application version", error),
-    );
-}
-
-type AppUpdateStatus = {
-  configured: boolean;
-  ready: boolean;
-  version: string | null;
-};
-function displayAppUpdate(s: AppUpdateStatus) {
-  $("#app-update-state").textContent = !s.configured
-    ? "En este sistema, descarga las nuevas versiones desde GitHub."
-    : s.ready
-      ? "Actualización verificada y preparada"
-      : "Ya tienes la última versión";
-  $("#install-app-update").hidden = !s.ready;
-  $("#update-available").hidden = !s.ready;
-}
-document.body.insertAdjacentHTML(
-  "beforeend",
-  `<button id="update-available" class="update-available" hidden>Actualización disponible</button>`,
-);
-$("#update-available").onclick = () => {
-  $("#nav-settings").click();
-  const details = $("#app-update-state").closest("details");
-  if (details) details.open = true;
-  $("#app-update-state").scrollIntoView({ block: "center" });
-};
-if (isTauri())
-  void listen<AppUpdateStatus>("app-update-ready", (e) =>
-    displayAppUpdate(e.payload),
-  );
-if (isTauri())
-  void listen<string>("app-update-install-error", (event) => {
-    $("#app-update-state").textContent = event.payload;
-    toast(translate(event.payload));
-  });
-$("#check-app-update").onclick = async () => {
-  const button = $<HTMLButtonElement>("#check-app-update");
-  button.disabled = true;
-  $("#app-update-state").textContent = "Comprobando…";
-  try {
-    const s = await invoke<{
-      configured: boolean;
-      ready: boolean;
-      version: string | null;
-    }>("check_app_update");
-    displayAppUpdate(s);
-  } catch (e) {
-    $("#app-update-state").textContent = String(e);
-  } finally {
-    button.disabled = false;
-  }
-};
-$("#install-app-update").onclick = () => {
-  void invoke("install_app_update").catch((e) => toast(String(e)));
-};
+setupAppUpdates();

@@ -25,6 +25,17 @@ let appearance: Appearance = ["light", "dark"].includes(
 export const getLanguage = () => language;
 export const locale = () => (language === "en" ? "en-GB" : "es-ES");
 const pairs: Record<string, string> = {
+  "La versión preparada ha cambiado. Vuelve a confirmar la actualización.":
+    "The prepared version has changed. Please confirm the update again.",
+  "Hay una nueva versión de MAGNETRON:":
+    "A new version of MAGNETRON is available:",
+  "Puedes actualizar ahora o continuar y hacerlo más tarde. La instalación cerrará MAGNETRON.":
+    "You can update now or continue and update later. Installation will close MAGNETRON.",
+  "Más tarde": "Later",
+  "Actualizar ahora": "Update now",
+  "Preparando actualización…": "Preparing update…",
+  "Instalando actualización…": "Installing update…",
+
   "Arrastra aquí archivos .torrent para descargarlos":
     "Drop .torrent files here to download them",
   "Arrastra un archivo .torrent válido": "Drop a valid .torrent file",
