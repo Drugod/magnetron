@@ -274,8 +274,8 @@ impl Storage {
         // Bound both record count and stored text. FTS and WAL have additional overhead.
         self.db.execute("DELETE FROM torrents WHERE id NOT IN (SELECT id FROM torrents ORDER BY observed_at DESC,id LIMIT ?1)",[cfg.index_max_records]).map_err(|e|e.to_string())?;
         loop {
-            let bytes:u64=self.db.query_row("SELECT coalesce(sum(length(CAST(json AS BLOB))+length(CAST(title AS BLOB))),0) FROM torrents",[],|r|r.get(0)).map_err(|e|e.to_string())?;
-            if bytes <= cfg.index_max_mib as u64 * 1024 * 1024 {
+            let bytes:i64=self.db.query_row("SELECT coalesce(sum(length(CAST(json AS BLOB))+length(CAST(title AS BLOB))),0) FROM torrents",[],|r|r.get(0)).map_err(|e|e.to_string())?;
+            if bytes <= i64::from(cfg.index_max_mib) * 1024 * 1024 {
                 break;
             }
             self.db.execute("DELETE FROM torrents WHERE id IN (SELECT id FROM torrents ORDER BY observed_at,id LIMIT max(1,(SELECT count(*)/10 FROM torrents)))",[]).map_err(|e|e.to_string())?;
@@ -333,14 +333,14 @@ impl Storage {
         if terms.is_empty() {
             return Ok(vec![]);
         }
+        let cache_seconds = i64::try_from(settings.cache_hours)
+            .ok()
+            .and_then(|hours| hours.checked_mul(3600))
+            .ok_or("Duración de caché fuera de rango")?;
         let mut stmt=self.db.prepare("SELECT t.json FROM torrent_fts f JOIN torrents t ON t.rowid=f.rowid WHERE torrent_fts MATCH ?1 AND (?3 OR t.observed_at >= unixepoch()-?2) ORDER BY rank LIMIT 300").map_err(|e|e.to_string())?;
         let rows = stmt
             .query_map(
-                params![
-                    terms.join(" AND "),
-                    settings.cache_hours * 3600,
-                    settings.local_index
-                ],
+                params![terms.join(" AND "), cache_seconds, settings.local_index],
                 |r| r.get::<_, String>(0),
             )
             .map_err(|e| e.to_string())?;
@@ -389,9 +389,11 @@ impl Storage {
             .map_err(|e| e.to_string())
     }
     pub fn count(&self) -> Result<u64, String> {
-        self.db
+        let count: i64 = self
+            .db
             .query_row("SELECT count(*) FROM torrents", [], |r| r.get(0))
-            .map_err(|e| e.to_string())
+            .map_err(|e| e.to_string())?;
+        u64::try_from(count).map_err(|e| e.to_string())
     }
     pub fn find(&self, id: &str) -> Result<Option<Torrent>, String> {
         let json: Option<String> = self
@@ -481,6 +483,12 @@ mod tests {
     fn settings_and_schema() {
         let s = Storage::new(std::path::Path::new(":memory:")).unwrap();
         assert!(!s.settings().unwrap().history);
+        assert_eq!(s.count().unwrap(), 0);
+        let invalid = Settings {
+            cache_hours: u64::MAX,
+            ..Settings::default()
+        };
+        assert!(s.search("ubuntu", &invalid).is_err());
         let mut cfg = Settings::default();
         cfg.history = true;
         s.save_settings(&cfg).unwrap();
