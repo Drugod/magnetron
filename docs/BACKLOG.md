@@ -1,6 +1,6 @@
 # MAGNETRON release checklist
 
-Updated November 18, 2026. Published baseline: [0.9.3](https://github.com/Drugod/magnetron/releases/tag/v0.9.3). The authorised release has been published and its public download/update links verified.
+Updated November 18, 2026. Published baseline: [0.9.4](https://github.com/Drugod/magnetron/releases/tag/v0.9.4). The authorised release has been published and its public download/update links verified.
 
 ## Delivered baseline
 
@@ -9,6 +9,14 @@ Updated November 18, 2026. Published baseline: [0.9.3](https://github.com/Drugod
 - Spanish/English, appearance controls, source automation and optional DHT/Kad discovery.
 - Queue recovery, owned-engine crash containment, installed version display and five signed application-update channels.
 - Version 0.9.0 and 0.9.1 package, runtime, security and accessibility checks passed; prolonged recovery evidence is documented for 0.9.0. Do not infer that future builds inherit those results automatically.
+
+## 0.9.4 delivery
+
+- Completed: Updates is an independent Settings section outside Shared folders, with the installed version visible.
+- Completed: explicit startup checking and a signed-version Update now / Later prompt, once per version/session. Installation waits for verified readiness, requires consent to the displayed version and prevents concurrent staging replacement during shutdown. Later/Escape postpone installation; errors allow an explicit retry.
+- Completed: one large continuous central search ring beneath the searching message, retained across result batches. The button/status rings are removed. Reduced motion slows the essential ring instead of freezing it.
+- Completed: 29 frontend tests; real-browser animation, popup, hierarchy and axe checks in both languages/themes; signed Windows/Linux/Mac package/runtime/update tests; security/accessibility/native recovery checks; 19 verified public assets. See [verification](VERIFICATION-0.9.4.md).
+- Completed: exact Windows installer/application-sample Defender scans reported no threats with security intelligence 1.463.355.0. The report records the point-in-time scope and limitations.
 
 ## 0.9.3 delivery
 
